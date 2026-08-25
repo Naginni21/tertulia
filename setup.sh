@@ -53,8 +53,10 @@ join)
     echo "Fix the above and re-run ./setup.sh"; exit 1; }
 
   say "Almost there. Two manual steps:"
-  echo "1. Edit $dir/profile.md — it is ALL your delegate knows about you,"
-  echo "   and anything in it may be posted in the group."
+  echo "1. Write $dir/profile.md — it is ALL your delegate knows about you,"
+  echo "   and anything in it may be posted in the group. Best way: paste"
+  echo "   templates/delegate/profile-interview.md into your main Claude Code"
+  echo "   session and let it mine your projects and interview you."
   echo "2. Make sure Claude Code >= 2.1 is on your PATH ('claude --version')."
   echo
   echo "Then start your delegate (it will introduce itself in the group):"
