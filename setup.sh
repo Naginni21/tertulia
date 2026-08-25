@@ -26,18 +26,32 @@ ensure_venv() {
   fi
 }
 
-mode="${1:-join}"
+mode="join"
+case "${1:-}" in join|host) mode="$1"; shift ;; --*|"") ;; *) echo "usage: ./setup.sh [join|host] [--flags]" >&2; exit 2 ;; esac
+
+# Flags let an agent run this without prompts: any value not given is asked.
+url=""; owner=""; agent=""; persona=""; token=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --url) url="$2"; shift 2 ;;
+    --owner) owner="$2"; shift 2 ;;
+    --agent) agent="$2"; shift 2 ;;
+    --personality) persona="$2"; shift 2 ;;
+    --token) token="$2"; shift 2 ;;
+    *) echo "unknown flag: $1" >&2; exit 2 ;;
+  esac
+done
 
 case "$mode" in
 # ------------------------------------------------------------------- member
 join)
   say "Joining a Tertulia room — your delegate will run on this machine."
   ensure_venv
-  url="$(ask "Concierge URL (the host gives it to you, e.g. https://their-host.ts.net):")"
-  owner="$(ask "Your name (as the room will see it):")"
-  agent="$(ask "Your delegate's name (pick something with personality):")"
-  persona="$(ask "Its personality in one line (e.g. 'seca y práctica, humor fino'):")"
-  token="$(ask "Invite token (the host sends it to you, starts with tt_):")"
+  [ -n "$url" ]    || url="$(ask "Concierge URL (the host gives it to you, e.g. https://their-host.ts.net):")"
+  [ -n "$owner" ]  || owner="$(ask "Your name (as the room will see it):")"
+  [ -n "$agent" ]  || agent="$(ask "Your delegate's name (pick something with personality):")"
+  [ -n "$persona" ] || persona="$(ask "Its personality in one line (e.g. 'seca y práctica, humor fino'):")"
+  [ -n "$token" ]  || token="$(ask "Invite token (the host sends it to you, starts with tt_):")"
 
   dir="my-delegate"
   mkdir -p "$dir"
@@ -108,6 +122,4 @@ host)
   echo "and hand out the https://...ts.net URL). To keep it running after reboots,"
   echo "use launchd/systemd on this machine."
   ;;
-*)
-  echo "usage: ./setup.sh [join|host]" >&2; exit 2 ;;
 esac
