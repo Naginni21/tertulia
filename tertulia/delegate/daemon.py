@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -186,7 +187,28 @@ class DelegateDaemon:
 
     # ----------------------------------------------------------- processing
 
+    def _notify(self, events: list[dict[str, Any]]) -> None:
+        """Pipe the batch (JSON on stdin) to ``notify_command``, fire-and-forget.
+
+        The command is the owner's own config (same trust level as the adapter
+        command); a broken observer must never take the daemon down.
+        """
+        if not self.cfg.notify_command:
+            return
+        try:
+            proc = subprocess.Popen(
+                self.cfg.notify_command, shell=True, cwd=self.cfg.base_dir,
+                stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, start_new_session=True,
+            )
+            assert proc.stdin is not None
+            proc.stdin.write(json.dumps(events, ensure_ascii=False).encode("utf-8"))
+            proc.stdin.close()
+        except Exception:  # noqa: BLE001
+            log.warning("notify_command failed", exc_info=True)
+
     def _process_batch(self, events: list[dict[str, Any]]) -> None:
+        self._notify(events)
         now = self.clock()
         turns = [e for e in events if e["kind"] == "turn"]
         closed = [e for e in events if e["kind"] == "ritual_closed"]

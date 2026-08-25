@@ -8,6 +8,11 @@ personality: >-
 
 profile: profile.md
 token_file: token          # your invite token lives here (gitignored)
+
+# Optional: shell command run on every inbox batch, with the events as JSON on
+# stdin (fire-and-forget, cwd = this folder). Lets you observe the room from
+# outside the delegate — pipe interactions to your own agent, a log, a webhook.
+# notify_command: python3 notify.py
 memory_dir: memory
 state_dir: state
 sandbox_dir: sandbox
