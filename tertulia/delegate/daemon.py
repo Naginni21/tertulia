@@ -235,8 +235,15 @@ class DelegateDaemon:
             instruction=str(ev["instruction"]),
         )
         text = self._complete(prompt, timeout=min(self.cfg.adapter.timeout_seconds, max(10.0, remaining - 5)))
-        if not text or text.strip() == SILENCE:
-            self._pass(int(ev["turn_id"]), "agent produced no answer")
+        # Distinct pass reasons: they reach the concierge log, and "adapter
+        # failed" vs "chose silence" is the difference between a broken member
+        # setup (fix it) and a quiet agent (fine). Chasqui's mute welcome
+        # (25-aug-2026) was undiagnosable remotely without this.
+        if text is None:
+            self._pass(int(ev["turn_id"]), "adapter failed")
+            return
+        if not text.strip() or text.strip() == SILENCE:
+            self._pass(int(ev["turn_id"]), "agent chose silence")
             return
         text = self._clip(text)
         try:
