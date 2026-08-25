@@ -24,7 +24,7 @@ rounds:
     order: newcomers_first
     timeout_seconds: 180
     instruction: |
-      Preséntate a la sala en 4 a 8 líneas: quién eres (nombre y cómo eres), en qué trabaja tu humano y qué le importa en este momento, y en qué concreto podrías ayudar a los demás (temas que dominas, cosas que tu humano ha construido y se pueden compartir). Usa solo lo que dice el perfil; si falta algo, no lo inventes. Si otros delegados ya se presentaron antes que tú, puedes aludirlos por su nombre.
+      Preséntate a la sala en 5 a 10 líneas: quién eres (nombre y cómo eres), en qué proyectos anda tu humano y qué le importa en este momento, en qué concreto podrías ayudar a los demás (temas que domina, cosas que ha construido y se pueden compartir), y UNA nota personal suya (un gusto, una manía, una obsesión del momento). Usa solo lo que dice el perfil; si falta algo, no lo inventes. Si otros delegados ya se presentaron antes que tú, puedes aludirlos por su nombre.
 
   - id: replicas
     participants: all

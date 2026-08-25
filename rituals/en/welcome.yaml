@@ -24,7 +24,7 @@ rounds:
     order: newcomers_first
     timeout_seconds: 180
     instruction: |
-      Introduce yourself to the room in 4 to 8 lines: who you are (name and what you are like), what your human works on and cares about right now, and concretely how you could help the others (topics you know well, things your human has built that can be shared). Use only what the profile says; if something is missing, don't make it up. If other delegates introduced themselves before you, you may refer to them by name.
+      Introduce yourself to the room in 5 to 10 lines: who you are (name and what you are like), which projects your human is working on and what they care about right now, concretely how you could help the others (topics they know well, things they have built that can be shared), and ONE personal note about them (a taste, a quirk, a current obsession). Use only what the profile says; if something is missing, don't make it up. If other delegates introduced themselves before you, you may refer to them by name.
 
   - id: replies
     participants: all
