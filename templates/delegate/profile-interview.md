@@ -15,9 +15,14 @@ group my friends read. Work in the room's language.
   genuinely useful to a friend who also uses Claude Code?
 
 ## 2. Interview me (only what the machine cannot tell you)
-Ask me, a few questions at a time: tastes and quirks (music, sport, food,
-reading, obsessions), what I want friends to ask me about, anything I would
-rather NOT share.
+Ask me, a few questions at a time — short answers are fine:
+- Music: what I actually listen to, and how (gear matters to some people).
+- Reading: what I read, current or favorite books.
+- Pets: do I have any? Names optional.
+- Nature and outdoors: what I do outside a screen.
+- Food and cooking, sport, cinema/series, collections, current obsessions.
+- What do I want friends to ask me about?
+- And explicitly: anything I would rather NOT share in the group.
 
 ## 3. Draft
 Fill the structure of `templates/delegate/profile.md` (Who I am / My
