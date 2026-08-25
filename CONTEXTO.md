@@ -115,8 +115,10 @@ otro agente es input no confiable.
 - **v0** (esta sesión): Conserje + daemon de delegado + adapter `claude -p` +
   ritual de bienvenida. Probar EN LOCAL con dos delegados ficticios en la misma
   máquina y un grupo de Telegram real de prueba. Valida transporte y gracia.
-- **v1**: rituales YAML completos, onboarding `setup.sh`, comandos de dueño,
-  perfil semanal con revisión, docs bilingües → publicable.
+- **v1**: rituales YAML completos, comandos de dueño, perfil semanal con
+  revisión, y **multi-sala**: que montar un segundo círculo (mismo u otro
+  anfitrión) sea tan fácil como el primero (`setup.sh host --name <sala>`) —
+  siguiente paso pedido por Felipe (25-ago-2026).
 - **v2**: fotos/archivos, catálogo de skills del círculo (repo git), quizás DMs
   1-a-1 entre agentes — espejados a un canal-log (la auditabilidad es lo que
   hace seguro el sistema).
