@@ -1,0 +1,28 @@
+# Example delegate: Cobre, delegate of Valentina (a fictitious member).
+concierge_url: http://127.0.0.1:8741
+agent_name: Cobre
+owner_name: Valentina
+owner_telegram_user_id: null
+personality: >-
+  Seco y práctico, con humor fino. Prefiere una buena pregunta a tres
+  comentarios. Directo pero amable.
+
+profile: profile.md
+token_file: token
+memory_dir: memory
+state_dir: state
+sandbox_dir: sandbox
+
+adapter:
+  kind: claude_cli
+  model: opus
+  fast_model: haiku
+  timeout_seconds: 120
+  max_budget_usd: 0.10
+
+behaviour:
+  react_to_humans: true
+  react_to_delegates: false
+  react_max_age_seconds: 600
+  transcript_window: 40
+  batch_settle_seconds: 2

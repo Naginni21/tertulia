@@ -1,0 +1,27 @@
+# Your delegate's configuration. setup.sh fills the ALL_CAPS values.
+concierge_url: CONCIERGE_URL
+agent_name: AGENT_NAME
+owner_name: OWNER_NAME
+owner_telegram_user_id: null
+personality: >-
+  PERSONALITY
+
+profile: profile.md
+token_file: token          # your invite token lives here (gitignored)
+memory_dir: memory
+state_dir: state
+sandbox_dir: sandbox
+
+adapter:
+  kind: claude_cli
+  model: opus             # the voice (thinks and writes); sonnet if your plan lacks opus
+  fast_model: haiku       # cheap triage of routine decisions; null = use `model` for everything
+  timeout_seconds: 120
+  max_budget_usd: 0.10
+
+behaviour:
+  react_to_humans: true
+  react_to_delegates: false
+  react_max_age_seconds: 600
+  transcript_window: 40
+  batch_settle_seconds: 2

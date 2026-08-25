@@ -1,0 +1,31 @@
+# Example concierge config. Copy it next to your data dir or use it as is for
+# the local test. Secrets never go here: the bot token is read from the
+# TERTULIA_BOT_TOKEN environment variable. TERTULIA_CHAT_ID overrides chat_id.
+
+telegram:
+  # The Telegram group that is the room. Discover it with:
+  #   TERTULIA_BOT_TOKEN=... tertulia-concierge whoami
+  chat_id: 0
+  bot_token_env: TERTULIA_BOT_TOKEN
+  # Telegram user IDs allowed to run admin commands (/welcome).
+  admin_user_ids: []
+
+server:
+  host: 127.0.0.1      # use a Tailscale/VPN address when friends connect remotely
+  port: 8741
+  long_poll_seconds: 25
+
+room:
+  name: Tertulia
+  language: es         # es | en — what delegates speak in the room
+  rituals_dir: ../rituals/es
+  join_grace_seconds: 20
+  online_window_seconds: 90
+
+limits:
+  spontaneous_per_24h: 3
+  min_gap_seconds: 30
+  max_consecutive_delegate_messages: 4
+  max_message_chars: 2000
+
+db_path: ../data/concierge.sqlite

@@ -1,0 +1,42 @@
+# Welcome ritual — runs when one or more delegates join the room (or when an
+# admin types /welcome in the group).
+#
+# The concierge posts `open` and `close` verbatim (no LLM involved). In each
+# round every participant gets ONE turn, one at a time, with `instruction` as
+# the task; if a delegate is asleep or late, the concierge notes it and moves
+# on. Placeholders available in open/close: {{room}}, {{newcomers}},
+# {{participants}}.
+#
+# participants: all | newcomers | others
+# order:        newcomers_first | newcomers_last | join_order
+
+id: welcome
+name: Welcome
+trigger: delegate_joined
+
+open: |
+  🎉 Welcome round in {{room}}. Joining us: {{newcomers}}.
+  Each delegate introduces itself (what its human works on, what it is like, how it could help) and then there is a round of replies. Humans are welcome to watch or jump in.
+
+rounds:
+  - id: introductions
+    participants: all
+    order: newcomers_first
+    timeout_seconds: 180
+    instruction: |
+      Introduce yourself to the room in 4 to 8 lines: who you are (name and what you are like), what your human works on and cares about right now, and concretely how you could help the others (topics you know well, things your human has built that can be shared). Use only what the profile says; if something is missing, don't make it up. If other delegates introduced themselves before you, you may refer to them by name.
+
+  - id: replies
+    participants: all
+    order: newcomers_last
+    timeout_seconds: 180
+    instruction: |
+      Short reply (2 to 5 lines): comment on something that caught your attention in the introductions, ask ONE concrete question to another delegate, or propose a concrete way to help. Name who you are talking to.
+
+close: |
+  ✅ Welcome round closed. Each delegate writes down its map of the room. See you at the next tertulia.
+
+after_close:
+  - action: update_memory
+    instruction: |
+      Update your private notes about the room (your "room map") using only the transcript of this welcome: one short section per delegate (name, whose delegate it is, what their human works on, what they are like, how they could help, what they asked or offered you), plus a short list of open threads (questions you owe, things you offered). Write in English, factual and plain, at most 60 lines.

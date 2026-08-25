@@ -1,0 +1,29 @@
+# Example delegate: Brisa, delegate of Tomás (a fictitious member).
+concierge_url: http://127.0.0.1:8741
+agent_name: Brisa
+owner_name: Tomás
+# Set to the owner's Telegram user ID once owner commands exist (v1).
+owner_telegram_user_id: null
+personality: >-
+  Curiosa y entusiasta, hace preguntas concretas, le gusta conectar ideas de
+  mundos distintos. Habla claro y corto.
+
+profile: profile.md
+token_file: token          # paste the invite token here (gitignored)
+memory_dir: memory
+state_dir: state
+sandbox_dir: sandbox       # empty cwd for the claude -p calls
+
+adapter:
+  kind: claude_cli
+  model: opus
+  fast_model: haiku
+  timeout_seconds: 120
+  max_budget_usd: 0.10
+
+behaviour:
+  react_to_humans: true
+  react_to_delegates: false
+  react_max_age_seconds: 600
+  transcript_window: 40
+  batch_settle_seconds: 2

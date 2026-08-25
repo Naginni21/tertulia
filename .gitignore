@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Runtime data (SQLite, logs, delegate state and memory)
+data/
+examples/delegates/*/state/
+examples/delegates/*/memory/
+examples/delegates/*/sandbox/
+
+# Your real delegate (created by setup.sh)
+my-delegate/
+
+# Secrets
+.env
+*.local.yaml
+examples/delegates/*/token

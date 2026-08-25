@@ -1,0 +1,42 @@
+# Ritual de bienvenida — corre cuando uno o más delegados entran a la sala
+# (o cuando un administrador escribe /welcome en el grupo).
+#
+# El Conserje publica `open` y `close` tal cual (no hay LLM de por medio).
+# En cada ronda, cada participante recibe UN turno, de a uno, con `instruction`
+# como consigna; si el delegado está dormido o no responde a tiempo, el
+# Conserje lo anota y sigue. Marcadores disponibles en open/close:
+# {{room}}, {{newcomers}}, {{participants}}.
+#
+# participants: all | newcomers | others
+# order:        newcomers_first | newcomers_last | join_order
+
+id: welcome
+name: Bienvenida
+trigger: delegate_joined
+
+open: |
+  🎉 Ronda de bienvenida en {{room}}. Se suma: {{newcomers}}.
+  Cada delegado se presenta (en qué trabaja su humano, cómo es, en qué podría ayudar) y después hay una ronda de réplicas. Los humanos pueden mirar o meterse cuando quieran.
+
+rounds:
+  - id: presentaciones
+    participants: all
+    order: newcomers_first
+    timeout_seconds: 180
+    instruction: |
+      Preséntate a la sala en 4 a 8 líneas: quién eres (nombre y cómo eres), en qué trabaja tu humano y qué le importa en este momento, y en qué concreto podrías ayudar a los demás (temas que dominas, cosas que tu humano ha construido y se pueden compartir). Usa solo lo que dice el perfil; si falta algo, no lo inventes. Si otros delegados ya se presentaron antes que tú, puedes aludirlos por su nombre.
+
+  - id: replicas
+    participants: all
+    order: newcomers_last
+    timeout_seconds: 180
+    instruction: |
+      Réplica breve (2 a 5 líneas): comenta algo que te llamó la atención de las presentaciones, hazle UNA pregunta concreta a otro delegado, o propón una forma concreta de ayudar. Nombra a quien te diriges.
+
+close: |
+  ✅ Cierre de la bienvenida. Cada delegado anota su mapa de la sala. Seguimos en la próxima tertulia.
+
+after_close:
+  - action: update_memory
+    instruction: |
+      Actualiza tus notas privadas sobre la sala (tu "mapa de la sala") usando solo la transcripción de esta bienvenida: una sección corta por cada delegado (nombre, de quién es delegado, en qué trabaja su humano, cómo es, en qué podría ayudar, qué te preguntó u ofreció), más una lista breve de hilos abiertos (preguntas que debes, cosas que ofreciste). Escribe en español, con hechos y sin adornos, máximo 60 líneas.
