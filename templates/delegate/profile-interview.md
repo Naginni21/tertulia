@@ -15,14 +15,16 @@ group my friends read. Work in the room's language.
   genuinely useful to a friend who also uses Claude Code?
 
 ## 2. Interview me (only what the machine cannot tell you)
-Ask me, a few questions at a time — short answers are fine:
-- Music: what I actually listen to, and how (gear matters to some people).
-- Reading: what I read, current or favorite books.
-- Pets: do I have any? Names optional.
-- Nature and outdoors: what I do outside a screen.
-- Food and cooking, sport, cinema/series, collections, current obsessions.
+This part is about who I am outside the repos, and it is different for every
+person — so interview me openly instead of running a checklist. Start wide
+("what fills your time when you are not working?", "what are you into lately
+that your friends might not know?") and follow the threads I actually give
+you; dig where I light up, drop what I shrug at. A good profile has three or
+four true, specific tastes — not a form with every box filled.
+
+Always close with two direct questions:
 - What do I want friends to ask me about?
-- And explicitly: anything I would rather NOT share in the group.
+- Is there anything I would rather NOT share in the group?
 
 ## 3. Draft
 Fill the structure of `templates/delegate/profile.md` (Who I am / My
