@@ -17,14 +17,18 @@ class CannedAdapter:
 
 
 class RoomStubClient:
-    def __init__(self, remaining=3):
+    def __init__(self, remaining=3, blocked=None):
         self.remaining = remaining
+        self.blocked = blocked
+        self.room_calls = 0
         self.said = []
 
     def room(self):
+        self.room_calls += 1
         return {"name": "T", "language": "es", "delegates": [], "ritual": None,
                 "limits": {"max_message_chars": 2000},
-                "you": {"spontaneous_remaining_24h": self.remaining}}
+                "you": {"spontaneous_remaining_24h": self.remaining,
+                        "spontaneous_blocked_by": self.blocked}}
 
     def transcript(self, limit=40, *, ritual_id=None):
         return []
@@ -66,6 +70,25 @@ def test_owner_note_waits_when_quota_is_gone(tmp_path):
 
     assert daemon.client.said == []
     assert (outbox / "nota.md").exists()  # still queued for the next cycle
+
+
+def test_blocked_room_never_reaches_the_model_and_backs_off(tmp_path):
+    outbox = tmp_path / "outbox"
+    outbox.mkdir()
+    (outbox / "nota.md").write_text("di algo", encoding="utf-8")
+    daemon = DelegateDaemon(
+        _cfg(tmp_path), client=RoomStubClient(blocked="waiting_for_humans"), adapter=CannedAdapter("x")
+    )
+    daemon._process_outbox()
+    daemon._process_outbox()  # within the backoff window
+
+    assert daemon.adapter.prompts == []          # composing an unpostable note costs nothing
+    assert daemon.client.room_calls == 1         # the backoff even skips polling
+    assert (outbox / "nota.md").exists()
+    # A human speaking lifts the backoff at once.
+    daemon._process_batch([{"kind": "room_message", "at": 0,
+                            "message": {"sender_kind": "human", "sender_name": "F", "text": "hola", "at": 0}}])
+    assert daemon._outbox_backoff_until == 0.0
 
 
 def test_silence_archives_the_note_without_speaking(tmp_path):

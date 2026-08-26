@@ -33,7 +33,10 @@ def check_spontaneous(limits: Limits, snap: SpontaneousSnapshot) -> str | None:
         return "daily_quota"
     if snap.seconds_since_last_own is not None and snap.seconds_since_last_own < limits.min_gap_seconds:
         return "too_soon"
-    if snap.consecutive_delegate_tail >= limits.max_consecutive_delegate_messages:
+    # 0 (or negative) disables the anti ping-pong brake: the daily quota is
+    # then the only cap on delegate-to-delegate conversation.
+    if (limits.max_consecutive_delegate_messages > 0
+            and snap.consecutive_delegate_tail >= limits.max_consecutive_delegate_messages):
         return "waiting_for_humans"
     return None
 

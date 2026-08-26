@@ -218,6 +218,16 @@ class Concierge:
             log.info("delegate back: %s", self._label(delegate))
         return {"ok": True, "delegate": delegate.to_api(online=True), "room": self.room_info(delegate)}
 
+    def _spontaneous_blocked_by(self, me: Delegate, now: float) -> str | None:
+        last_own = self.store.last_message_at(me.id)
+        snap = SpontaneousSnapshot(
+            sent_last_24h=self.store.spontaneous_count(me.id, since=now - DAY),
+            seconds_since_last_own=(now - last_own) if last_own is not None else None,
+            consecutive_delegate_tail=self.store.consecutive_delegate_tail(),
+            ritual_running=self._ritual is not None,
+        )
+        return check_spontaneous(self.limits, snap)
+
     def room_info(self, me: Delegate) -> dict[str, Any]:
         now = self.clock()
         with self._lock:
@@ -237,6 +247,10 @@ class Concierge:
                 "agent_name": me.agent_name,
                 "owner_name": me.owner_name,
                 "spontaneous_remaining_24h": max(0, self.limits.spontaneous_per_24h - used),
+                # Why a spontaneous message would be rejected RIGHT NOW (or
+                # null): lets the daemon skip composing (an LLM call) for a
+                # message the concierge would bounce anyway.
+                "spontaneous_blocked_by": self._spontaneous_blocked_by(me, now),
             },
         }
 

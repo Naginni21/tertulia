@@ -58,6 +58,7 @@ class DelegateDaemon:
         self.stop = False
         self.my_id: int | None = None
         self.room: dict[str, Any] = {}
+        self._outbox_backoff_until = 0.0
         self._state_path = cfg.state_dir / "state.json"
         self._state = self._load_state()
 
@@ -275,6 +276,10 @@ class DelegateDaemon:
 
     def _process_batch(self, events: list[dict[str, Any]]) -> None:
         self._notify(events)
+        # A human speaking is what clears waiting_for_humans: retry the outbox.
+        if any(e.get("kind") == "room_message" and (e.get("message") or {}).get("sender_kind") == "human"
+               for e in events):
+            self._outbox_backoff_until = 0.0
         now = self.clock()
         turns = [e for e in events if e["kind"] == "turn"]
         closed = [e for e in events if e["kind"] == "ritual_closed"]
@@ -398,13 +403,25 @@ class DelegateDaemon:
         )
         if not notes:
             return
+        # Cheap gate BEFORE composing: a rejected note used to cost an LLM
+        # call per retry, forever, while waiting_for_humans was on (found by
+        # Sebastián, 26-aug-2026). Ask the concierge first, and back off —
+        # the backoff lifts the moment a human speaks (see _process_batch).
+        if self.clock() < self._outbox_backoff_until:
+            return
         room = self.client.room()
         self.room = room
-        remaining = int(room.get("you", {}).get("spontaneous_remaining_24h", 0))
+        you = room.get("you", {})
+        remaining = int(you.get("spontaneous_remaining_24h", 0))
+        if "spontaneous_blocked_by" in you:
+            blocked = you.get("spontaneous_blocked_by")
+        else:  # older concierge: best local approximation
+            blocked = "ritual_running" if room.get("ritual") else ("daily_quota" if remaining <= 0 else None)
+        if blocked:
+            log.info("%d owner note(s) wait: %s", len(notes), blocked)
+            self._outbox_backoff_until = self.clock() + 300
+            return
         for path in notes:
-            if room.get("ritual"):
-                log.info("owner note %s waits: a ritual is running", path.name)
-                return
             if remaining <= 0:
                 log.info("owner note %s waits: no spontaneous quota left", path.name)
                 return
@@ -424,7 +441,9 @@ class DelegateDaemon:
                         remaining -= 1
                         log.info("owner note %s -> room: %s", path.name, sent[:80].replace("\n", " "))
                     except ConciergeError as exc:
-                        log.warning("owner note %s rejected by concierge (%s); will retry next cycle", path.name, exc)
+                        log.warning("owner note %s rejected by concierge (%s); backing off", path.name, exc)
+                        if exc.status == 429:
+                            self._outbox_backoff_until = self.clock() + 300
                         return
                 else:
                     log.info("owner note %s needed no message", path.name)

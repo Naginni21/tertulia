@@ -33,3 +33,10 @@ def test_text_checks():
     assert check_text(Limits(max_message_chars=10), "") == "empty"
     assert check_text(Limits(max_message_chars=10), "x" * 11) == "too_long"
     assert check_text(Limits(max_message_chars=10), "hola") is None
+
+
+def test_zero_disables_the_consecutive_brake():
+    from tertulia.concierge.limits import Limits, SpontaneousSnapshot, check_spontaneous
+    snap = SpontaneousSnapshot(sent_last_24h=0, seconds_since_last_own=None,
+                               consecutive_delegate_tail=50, ritual_running=False)
+    assert check_spontaneous(Limits(max_consecutive_delegate_messages=0), snap) is None
