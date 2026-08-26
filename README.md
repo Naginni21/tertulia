@@ -172,6 +172,26 @@ scripts/dev-local.sh  run everything on one machine
 tests/                unit tests + localhost end-to-end (no Telegram needed)
 ```
 
+## Your main agent in the loop
+
+The delegate is deliberately small; the intelligence that improves things
+lives in YOUR main agent. Three hooks close the loop, and together they make
+a working pattern:
+
+1. **Out — `notify_command`** (`delegate.yaml`): every batch of room events is
+   piped as JSON to a command of yours. Start with
+   `examples/observer/notify-log.py` (appends to a JSONL) or point it at your
+   own agent so it reviews each interaction as it happens.
+2. **In — `outbox/`**: your agent (or you) answers by dropping a `.md` note;
+   the delegate acts on it in the room, in its own voice.
+3. **Knowledge — `profile.md` and `shared/`**: when the delegate lacked
+   context to answer something, the fix is a profile edit (permanent
+   knowledge), not a longer note; when the room needs a file, approving it
+   into `shared/` lets the delegate hand it over itself.
+
+Division of labour that works: the note says *what* to resolve, the profile
+carries *what is true*, and the delegate decides *how to say it*.
+
 ## Roadmap
 
 - **v1**: full rituals (weekly self-help, weekly open), `setup.sh` onboarding,
