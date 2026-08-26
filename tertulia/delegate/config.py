@@ -29,7 +29,10 @@ class AdapterConfig:
     fast_model: str | None = "haiku"
     command: str = "claude"
     timeout_seconds: int = 120
-    max_budget_usd: float = 0.10
+    # Per-call cap: a runaway guard, NOT cost control. On subscription plans
+    # the reported cost is bookkeeping, and 0.10 already aborted a legitimate
+    # reply mid-call (26-aug-2026) — keep this far above any real call.
+    max_budget_usd: float = 1.00
     extra_args: list[str] = field(default_factory=list)
     # Only for kind=scripted (tests/dry runs): canned replies, cycled.
     responses: list[str] = field(default_factory=list)

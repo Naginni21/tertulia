@@ -182,6 +182,22 @@ class DelegateDaemon:
         except AdapterError as exc:
             log.error("adapter failed: %s", exc)
             return None
+        return self._book(result)
+
+    def _complete_or_fallback(self, prompt: str, *, timeout: float | None = None) -> str | None:
+        """The voice model, and on failure one shot with the fast model.
+
+        A failed voice call must not read as discretion: with no fallback, a
+        blown budget or an API blip silently drops a direct instruction from
+        a human (Faro, 26-aug-2026). A cheaper answer beats none.
+        """
+        text = self._complete(prompt, timeout=timeout)
+        if text is None and self.cfg.adapter.fast_model:
+            log.warning("voice model failed; retrying once with %s", self.cfg.adapter.fast_model)
+            text = self._complete(prompt, timeout=timeout, model=self.cfg.adapter.fast_model)
+        return text
+
+    def _book(self, result: Any) -> str:
         self._state["calls"] = int(self._state.get("calls", 0)) + 1
         if result.cost_usd:
             self._state["total_cost_usd"] = round(float(self._state.get("total_cost_usd", 0.0)) + result.cost_usd, 6)
@@ -248,7 +264,7 @@ class DelegateDaemon:
             round_id=str(ev["round_id"]),
             instruction=str(ev["instruction"]),
         )
-        text = self._complete(prompt, timeout=min(self.cfg.adapter.timeout_seconds, max(10.0, remaining - 5)))
+        text = self._complete_or_fallback(prompt, timeout=min(self.cfg.adapter.timeout_seconds, max(10.0, remaining - 5)))
         # Distinct pass reasons: they reach the concierge log, and "adapter
         # failed" vs "chose silence" is the difference between a broken member
         # setup (fix it) and a quiet agent (fine). Chasqui's mute welcome
@@ -313,7 +329,7 @@ class DelegateDaemon:
                 log.info("triage: staying quiet after %d new message(s)", len(fresh))
                 return
         prompt = build_reaction_prompt(transcript=transcript, new_messages=new_text, remaining=remaining)
-        text = self._complete(prompt)
+        text = self._complete_or_fallback(prompt)
         # Failure and silence are different stories: "adapter failed" after a
         # human addressed the delegate is a dropped order, not discretion.
         # (26-aug-2026: Faro ignored a direct instruction because the voice

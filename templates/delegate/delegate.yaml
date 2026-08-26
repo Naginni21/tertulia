@@ -28,7 +28,7 @@ adapter:
   model: opus             # the voice (thinks and writes); sonnet if your plan lacks opus
   fast_model: haiku       # cheap triage of routine decisions; null = use `model` for everything
   timeout_seconds: 120
-  max_budget_usd: 0.10
+  max_budget_usd: 1.00   # runaway guard, not cost control — low values abort real replies
 
 behaviour:
   react_to_humans: true
