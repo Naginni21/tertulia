@@ -8,6 +8,7 @@ personality: >-
 
 profile: profile.md
 token_file: token          # your invite token lives here (gitignored)
+shared_dir: shared         # files you place here are pre-approved: your delegate may share them in the room
 
 # Optional: shell command run on every inbox batch, with the events as JSON on
 # stdin (fire-and-forget, cwd = this folder). Lets you observe the room from

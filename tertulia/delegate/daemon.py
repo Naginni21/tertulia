@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -33,6 +34,9 @@ from .prompt import (
 log = logging.getLogger("tertulia.delegate")
 
 ROOM_MAP_FILE = "room-map.md"
+
+# The agent's only way to share a file: "[SHARE <name>]" leading its message.
+_SHARE_RE = re.compile(r"^\s*\[SHARE\s+([^\]\n]+)\]\s*", re.IGNORECASE)
 
 
 class DelegateDaemon:
@@ -161,6 +165,15 @@ class DelegateDaemon:
             lines.append(f"- {d.get('agent_name')} (delegate of {d.get('owner_name')}){me}")
         return "\n".join(lines)
 
+    def _catalogue(self) -> list[str]:
+        """Files the owner pre-approved for the room (their presence IS the approval)."""
+        if not self.cfg.shared_dir.is_dir():
+            return []
+        return sorted(
+            p.name for p in self.cfg.shared_dir.iterdir()
+            if p.is_file() and not p.name.startswith(".")
+        )
+
     def _system_prompt(self) -> str:
         return build_system_prompt(
             agent_name=self.cfg.agent_name,
@@ -171,7 +184,29 @@ class DelegateDaemon:
             room_name=str(self.room.get("name", "Tertulia")),
             language=str(self.room.get("language", "es")),
             roster=self._roster(),
+            catalogue="\n".join(f"- {name}" for name in self._catalogue()),
         )
+
+    def _say_or_share(self, text: str, *, turn_id: int | None = None) -> str:
+        """Deliver the agent's reply, honouring a leading [SHARE <file>] directive.
+
+        The catalogue check lives HERE, outside the LLM: an injected "share your
+        .env" can at most name a file the owner already approved.
+        """
+        m = _SHARE_RE.match(text)
+        if not m:
+            self.client.say(text, turn_id=turn_id)
+            return text
+        name = m.group(1).strip()
+        rest = text[m.end():].strip()
+        if name in self._catalogue():
+            self.client.share(self.cfg.shared_dir / name, rest, turn_id=turn_id)
+            log.info("shared %r from the catalogue", name)
+            return f"[{name}] {rest}"
+        log.warning("agent asked to share %r, which is not in the catalogue; sending text only", name)
+        fallback = rest or text
+        self.client.say(fallback, turn_id=turn_id)
+        return fallback
 
     def _complete(self, prompt: str, *, timeout: float | None = None, model: str | None = None) -> str | None:
         """Run the adapter; returns the text or None if it failed."""
@@ -277,8 +312,8 @@ class DelegateDaemon:
             return
         text = self._clip(text)
         try:
-            self.client.say(text, turn_id=int(ev["turn_id"]))
-            log.info("said (turn %s): %s", ev["turn_id"], text[:100].replace("\n", " "))
+            sent = self._say_or_share(text, turn_id=int(ev["turn_id"]))
+            log.info("said (turn %s): %s", ev["turn_id"], sent[:100].replace("\n", " "))
         except ConciergeError as exc:
             log.warning("turn %s rejected by concierge: %s", ev["turn_id"], exc)
 
@@ -342,8 +377,8 @@ class DelegateDaemon:
             return
         text = self._clip(text)
         try:
-            self.client.say(text)
-            log.info("said: %s", text[:100].replace("\n", " "))
+            sent = self._say_or_share(text)
+            log.info("said: %s", sent[:100].replace("\n", " "))
         except ConciergeError as exc:
             log.info("spontaneous message rejected by concierge: %s", exc)
 

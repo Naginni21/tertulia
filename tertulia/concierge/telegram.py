@@ -80,6 +80,48 @@ class TelegramClient:
             link_preview_options={"is_disabled": True},
         )
 
+    def send_document(
+        self, chat_id: int, filename: str, content: bytes, *, caption: str | None = None,
+        parse_mode: str | None = "HTML",
+    ) -> dict[str, Any]:
+        """``sendDocument`` needs multipart/form-data, which ``call()`` (JSON) cannot do."""
+        boundary = f"tertulia{id(content):x}{len(content):x}"
+        fields: dict[str, str] = {"chat_id": str(chat_id)}
+        if caption:
+            fields["caption"] = caption
+        if parse_mode:
+            fields["parse_mode"] = parse_mode
+        parts: list[bytes] = []
+        for key, value in fields.items():
+            parts.append(
+                f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{value}\r\n'.encode()
+            )
+        safe_name = filename.replace('"', "'")
+        parts.append(
+            f'--{boundary}\r\nContent-Disposition: form-data; name="document"; filename="{safe_name}"\r\n'
+            "Content-Type: application/octet-stream\r\n\r\n".encode()
+        )
+        parts.append(content)
+        parts.append(f"\r\n--{boundary}--\r\n".encode())
+        req = urllib.request.Request(
+            f"{self._url}/sendDocument", data=b"".join(parts),
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=max(self._timeout, 180)) as resp:
+                data = json.load(resp)
+        except urllib.error.HTTPError as exc:
+            try:
+                data = json.load(exc)
+            except Exception:  # noqa: BLE001 - body is not JSON, use the HTTP status
+                raise TelegramError("sendDocument", exc.code, exc.reason) from None
+            raise TelegramError(
+                "sendDocument", data.get("error_code", exc.code), data.get("description", exc.reason)
+            ) from None
+        if not data.get("ok"):
+            raise TelegramError("sendDocument", data.get("error_code"), data.get("description", "unknown error"))
+        return data["result"]
+
 
 def html_escape(text: str) -> str:
     """Escape text for Telegram's HTML parse mode."""

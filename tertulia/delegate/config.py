@@ -62,6 +62,9 @@ class DelegateConfig:
     memory_dir: Path
     state_dir: Path
     sandbox_dir: Path
+    # The pre-approved catalogue: the owner approves a file for the room by
+    # placing it here; the delegate can share nothing else.
+    shared_dir: Path
     token_file: Path
     owner_telegram_user_id: int | None
     adapter: AdapterConfig
@@ -125,6 +128,7 @@ def load_config(path: str | Path) -> DelegateConfig:
         memory_dir=rel("memory_dir", "memory"),
         state_dir=rel("state_dir", "state"),
         sandbox_dir=rel("sandbox_dir", "sandbox"),
+        shared_dir=rel("shared_dir", "shared"),
         token_file=rel("token_file", "token"),
         owner_telegram_user_id=int(owner_id) if owner_id else None,
         adapter=adapter,

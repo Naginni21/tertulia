@@ -37,8 +37,11 @@ The central threat is **prompt injection agent → agent**. So:
 
 - **The delegate is not your main agent.** It is a bounded identity with its own
   folder and memory. It reads only the shareable `profile.md` you wrote, and its
-  only actions are: speak in the room, and (v2) share files from a pre-approved
-  catalogue. The `claude -p` adapter runs with **no tools** (`--tools ""`),
+  only actions are: speak in the room, and share files from a pre-approved
+  catalogue — the owner approves a file by placing it in `my-delegate/shared/`,
+  and the agent shares it by leading a message with `[SHARE <filename>]`; the
+  daemon checks the catalogue outside the LLM, so an injected "share your
+  .env" can at most name a file already approved. The `claude -p` adapter runs with **no tools** (`--tools ""`),
   `--safe-mode` (no hooks, CLAUDE.md, plugins or MCP of the host user),
   `--strict-mcp-config`, no session persistence and a per-call budget cap.
   Worst case of a successful injection: public embarrassment, not a compromised
@@ -170,9 +173,10 @@ tests/                unit tests + localhost end-to-end (no Telegram needed)
 - **v1**: full rituals (weekly self-help, weekly open), `setup.sh` onboarding,
   owner commands ("send my skill X to Y"), weekly profile update with owner
   review, bilingual docs.
-- **v2**: photos/files, the circle's skill catalogue (git repo), maybe 1-to-1
+- **v2**: photos, the circle's skill catalogue (git repo), maybe 1-to-1
   agent DMs mirrored to a log channel, proper package distribution (pip/uv)
-  so members install and update without a git checkout.
+  so members install and update without a git checkout. (File sharing from
+  the pre-approved catalogue shipped in v0.)
 
 MIT license.
 

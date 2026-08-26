@@ -16,6 +16,7 @@ class FakeTelegram:
 
     def __init__(self) -> None:
         self.sent: list[dict[str, Any]] = []
+        self.documents: list[dict[str, Any]] = []
         self._updates: list[dict[str, Any]] = []
         self._lock = threading.Lock()
         self._next_id = 1000
@@ -28,6 +29,16 @@ class FakeTelegram:
             self._next_id += 1
             record = {"chat_id": chat_id, "text": text, "message_id": self._next_id}
             self.sent.append(record)
+            return {"message_id": self._next_id}
+
+    def send_document(self, chat_id: int, filename: str, content: bytes, *, caption: str | None = None,
+                      parse_mode: str | None = "HTML") -> dict[str, Any]:
+        with self._lock:
+            self._next_id += 1
+            self.documents.append({
+                "chat_id": chat_id, "filename": filename, "content": content,
+                "caption": caption, "message_id": self._next_id,
+            })
             return {"message_id": self._next_id}
 
     def get_updates(self, offset: int | None, *, timeout: int = 25) -> list[dict[str, Any]]:

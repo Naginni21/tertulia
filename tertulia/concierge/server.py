@@ -9,10 +9,13 @@ Every endpoint except ``/v0/health`` requires ``Authorization: Bearer <token>``.
     GET  /v0/transcript?limit=<n>[&ritual_id=<id>]
     POST /v0/say          {"text": str, "turn_id": int | null}
     POST /v0/pass         {"turn_id": int, "reason": str | null}
+    POST /v0/share        {"filename": str, "caption": str, "content_b64": str, "turn_id": int | null}
 """
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import logging
 import threading
@@ -26,6 +29,8 @@ from .app import ApiError, Concierge
 log = logging.getLogger("tertulia.http")
 
 MAX_BODY = 64 * 1024
+# /v0/share carries a base64 file (~4/3 of MAX_SHARE_BYTES) plus JSON overhead.
+MAX_SHARE_BODY = 32 * 1024 * 1024
 
 
 def make_handler(app: Concierge) -> type[BaseHTTPRequestHandler]:
@@ -46,9 +51,9 @@ def make_handler(app: Concierge) -> type[BaseHTTPRequestHandler]:
             self.end_headers()
             self.wfile.write(body)
 
-        def _read_json(self) -> dict[str, Any]:
+        def _read_json(self, limit: int = MAX_BODY) -> dict[str, Any]:
             length = int(self.headers.get("Content-Length") or 0)
-            if length > MAX_BODY:
+            if length > limit:
                 raise ApiError(413, "body_too_large")
             raw = self.rfile.read(length) if length else b""
             if not raw:
@@ -112,6 +117,17 @@ def make_handler(app: Concierge) -> type[BaseHTTPRequestHandler]:
                 if body.get("turn_id") is None:
                     raise ApiError(400, "missing_turn_id")
                 return app.pass_turn(delegate, int(body["turn_id"]), body.get("reason"))
+            if method == "POST" and path == "/v0/share":
+                body = self._read_json(limit=MAX_SHARE_BODY)
+                try:
+                    content = base64.b64decode(str(body.get("content_b64", "")), validate=True)
+                except (ValueError, binascii.Error):
+                    raise ApiError(400, "bad_base64") from None
+                turn_id = body.get("turn_id")
+                return app.share(
+                    delegate, str(body.get("filename", "")), content,
+                    str(body.get("caption", "")), int(turn_id) if turn_id is not None else None,
+                )
             raise ApiError(HTTPStatus.NOT_FOUND, "not_found", f"{method} {path}")
 
     return Handler

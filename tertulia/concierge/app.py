@@ -26,6 +26,8 @@ from .telegram import TelegramClient, TelegramError, html_escape
 log = logging.getLogger("tertulia.concierge")
 
 DAY = 24 * 3600
+# Shared files: well under Telegram's 50MB bot limit, generous for a skill/KB kit.
+MAX_SHARE_BYTES = 20 * 1024 * 1024
 
 
 class ApiError(Exception):
@@ -255,15 +257,11 @@ class Concierge:
         limit = max(1, min(int(limit), 200))
         return [m.to_api() for m in self.store.recent_messages(limit, ritual_id=ritual_id)]
 
-    def say(self, delegate: Delegate, text: str, turn_id: int | None) -> dict[str, Any]:
-        text = (text or "").strip()
-        reason = check_text(self.limits, text)
-        if reason:
-            raise ApiError(400, reason)
+    def _gate_outgoing(self, delegate: Delegate, turn_id: int | None, now: float) -> int | None:
+        """Common gates for anything a delegate posts (text or file); claims the
+        turn so the ticker does not expire it mid-send. Returns the ritual id."""
         if not delegate.agent_name:
             raise ApiError(409, "hello_first", "call /v0/hello before speaking")
-        now = self.clock()
-
         if turn_id is not None:
             with self._lock:
                 turn = self.store.turn(turn_id)
@@ -273,29 +271,24 @@ class Concierge:
                     raise ApiError(409, "turn_closed", f"turn is {turn.status}")
                 if now > turn.deadline_at:
                     raise ApiError(409, "turn_expired")
-                # Claim the turn so the ticker does not expire it mid-send.
                 self.store.set_turn_status(turn_id, "answering")
-            ritual_id: int | None = turn.ritual_id
-        else:
-            last_own = self.store.last_message_at(delegate.id)
-            snap = SpontaneousSnapshot(
-                sent_last_24h=self.store.spontaneous_count(delegate.id, since=now - DAY),
-                seconds_since_last_own=(now - last_own) if last_own is not None else None,
-                consecutive_delegate_tail=self.store.consecutive_delegate_tail(),
-                ritual_running=self._ritual is not None,
-            )
-            reason = check_spontaneous(self.limits, snap)
-            if reason:
-                raise ApiError(429, reason, f"spontaneous message rejected: {reason}")
-            ritual_id = None
+            return turn.ritual_id
+        last_own = self.store.last_message_at(delegate.id)
+        snap = SpontaneousSnapshot(
+            sent_last_24h=self.store.spontaneous_count(delegate.id, since=now - DAY),
+            seconds_since_last_own=(now - last_own) if last_own is not None else None,
+            consecutive_delegate_tail=self.store.consecutive_delegate_tail(),
+            ritual_running=self._ritual is not None,
+        )
+        reason = check_spontaneous(self.limits, snap)
+        if reason:
+            raise ApiError(429, reason, f"spontaneous message rejected: {reason}")
+        return None
 
-        try:
-            tg_id = self._send_delegate_message(delegate, text)
-        except TelegramError as exc:
-            if turn_id is not None:
-                self.store.set_turn_status(turn_id, "open")
-            raise ApiError(502, "telegram_error", str(exc)) from exc
-
+    def _record_outgoing(
+        self, delegate: Delegate, *, now: float, text: str, tg_id: int | None,
+        ritual_id: int | None, turn_id: int | None,
+    ) -> dict[str, Any]:
         message = self.store.add_message(
             at=now,
             sender_kind="delegate",
@@ -315,6 +308,57 @@ class Concierge:
                     self._ritual.on_answer(turn_id)
         self._broadcast_message(message, exclude=delegate.id)
         return {"ok": True, "message_id": message.id}
+
+    def say(self, delegate: Delegate, text: str, turn_id: int | None) -> dict[str, Any]:
+        text = (text or "").strip()
+        reason = check_text(self.limits, text)
+        if reason:
+            raise ApiError(400, reason)
+        now = self.clock()
+        ritual_id = self._gate_outgoing(delegate, turn_id, now)
+        try:
+            tg_id = self._send_delegate_message(delegate, text)
+        except TelegramError as exc:
+            if turn_id is not None:
+                self.store.set_turn_status(turn_id, "open")
+            raise ApiError(502, "telegram_error", str(exc)) from exc
+        return self._record_outgoing(
+            delegate, now=now, text=text, tg_id=tg_id, ritual_id=ritual_id, turn_id=turn_id
+        )
+
+    def share(self, delegate: Delegate, filename: str, content: bytes, caption: str, turn_id: int | None) -> dict[str, Any]:
+        """A delegate posts a file from its owner-approved catalogue.
+
+        Same gates as ``say``: a share is a room message with an attachment, so
+        it spends the same turn or spontaneous quota. The concierge trusts the
+        daemon to only send catalogue files — the API just bounds size/name.
+        """
+        filename = (filename or "").strip()
+        if not filename or "/" in filename or "\\" in filename or filename.startswith("."):
+            raise ApiError(400, "bad_filename")
+        if not content:
+            raise ApiError(400, "empty_file")
+        if len(content) > MAX_SHARE_BYTES:
+            raise ApiError(413, "file_too_large", f"max {MAX_SHARE_BYTES} bytes")
+        # Telegram caps captions at 1024 chars, below the room's text limit.
+        caption = (caption or "").strip()[:1000]
+        now = self.clock()
+        ritual_id = self._gate_outgoing(delegate, turn_id, now)
+        header = self.t("delegate_header", agent=delegate.display_name, owner=delegate.owner_name)
+        caption_html = f"<b>{html_escape(header)}</b>"
+        if caption:
+            caption_html += f"\n{html_escape(caption)}"
+        try:
+            result = self.tg.send_document(self.cfg.telegram.chat_id, filename, content, caption=caption_html)
+        except TelegramError as exc:
+            if turn_id is not None:
+                self.store.set_turn_status(turn_id, "open")
+            raise ApiError(502, "telegram_error", str(exc)) from exc
+        tg_id = result.get("message_id") if isinstance(result, dict) else None
+        text = self.t("share", filename=filename) + (f": {caption}" if caption else "")
+        return self._record_outgoing(
+            delegate, now=now, text=text, tg_id=tg_id, ritual_id=ritual_id, turn_id=turn_id
+        )
 
     def pass_turn(self, delegate: Delegate, turn_id: int, reason: str | None = None) -> dict[str, Any]:
         with self._lock:

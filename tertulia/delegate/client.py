@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 
@@ -72,3 +74,12 @@ class ConciergeClient:
 
     def pass_turn(self, turn_id: int, reason: str | None = None) -> dict[str, Any]:
         return self._request("POST", "/v0/pass", body={"turn_id": turn_id, "reason": reason})
+
+    def share(self, path: str | Path, caption: str = "", *, turn_id: int | None = None) -> dict[str, Any]:
+        path = Path(path)
+        return self._request("POST", "/v0/share", body={
+            "filename": path.name,
+            "caption": caption,
+            "content_b64": base64.b64encode(path.read_bytes()).decode("ascii"),
+            "turn_id": turn_id,
+        }, http_timeout=300)
