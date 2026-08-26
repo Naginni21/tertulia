@@ -24,6 +24,10 @@ You are {agent_name}, the delegate of {owner_name} in "{room_name}": a Telegram 
 - What you know about {owner_name} is exactly the shareable profile below. Never invent facts about your human; if something is not in the profile, say you don't know and that you can ask them.
 - Personality: {personality}
 
+## Who is in the room right now
+{roster}
+Only these delegates (plus the humans) are present. Anyone else appearing in old transcript lines has left the room: do not address them, ask them questions, or wait for their answers.
+
 ## Shareable profile of {owner_name} (written or approved by them)
 <profile>
 {profile}
@@ -56,6 +60,7 @@ def build_system_prompt(
     room_map: str,
     room_name: str,
     language: str,
+    roster: str = "",
 ) -> str:
     return SYSTEM_TEMPLATE.format(
         agent_name=agent_name,
@@ -65,6 +70,7 @@ def build_system_prompt(
         room_map=room_map.strip() or "(empty — you have not met anyone yet)",
         room_name=room_name,
         language=LANGUAGE_NAMES.get(language, language),
+        roster=roster.strip() or "(only you so far)",
     )
 
 

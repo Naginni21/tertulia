@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import signal
+import subprocess
 import sys
+from pathlib import Path
 
 from .adapters import AdapterError, make_adapter
 from .client import ConciergeClient, ConciergeError
 from .config import ConfigError, load_config
 from .daemon import DelegateDaemon
+
+log = logging.getLogger("tertulia.delegate")
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -21,6 +26,35 @@ def _setup_logging(verbose: bool) -> None:
     )
 
 
+def _auto_update(pkg_dir: Path | None = None) -> bool:
+    """Best-effort ``git pull --ff-only`` of the checkout this code runs from.
+
+    Returns True when new code arrived (the caller re-execs to load it).
+    Never raises: offline, not-a-checkout (pip install) or a diverged branch
+    just mean "no update". Members installed with ``pip install -e .`` stay
+    current without ever running git themselves.
+    """
+    def git(*argv: str, cwd: Path, timeout: float = 15) -> subprocess.CompletedProcess:
+        return subprocess.run(["git", "-C", str(cwd), *argv],
+                              capture_output=True, text=True, timeout=timeout)
+
+    try:
+        here = pkg_dir or Path(__file__).resolve().parent
+        top = git("rev-parse", "--show-toplevel", cwd=here)
+        if top.returncode != 0:
+            return False
+        root = Path(top.stdout.strip())
+        before = git("rev-parse", "HEAD", cwd=root).stdout.strip()
+        pull = git("pull", "--ff-only", "--quiet", cwd=root, timeout=60)
+        if pull.returncode != 0:
+            log.warning("auto-update: git pull failed: %s", pull.stderr.strip() or pull.stdout.strip())
+            return False
+        after = git("rev-parse", "HEAD", cwd=root).stdout.strip()
+        return bool(before and after and before != after)
+    except Exception:  # noqa: BLE001 - updating must never stop the daemon
+        return False
+
+
 def _build(args: argparse.Namespace) -> DelegateDaemon:
     cfg = load_config(args.config)
     client = ConciergeClient(cfg.concierge_url, cfg.token())
@@ -29,6 +63,12 @@ def _build(args: argparse.Namespace) -> DelegateDaemon:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    cfg = load_config(args.config)
+    # The env guard breaks re-exec loops if HEAD keeps "changing" somehow.
+    if cfg.auto_update and os.environ.get("TERTULIA_AUTOUPDATED") != "1" and _auto_update():
+        log.info("auto-update: new version pulled; restarting")
+        os.environ["TERTULIA_AUTOUPDATED"] = "1"
+        os.execv(sys.executable, [sys.executable, "-m", "tertulia.delegate", *sys.argv[1:]])
     daemon = _build(args)
 
     def _stop(*_: object) -> None:

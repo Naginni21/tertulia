@@ -68,6 +68,9 @@ class DelegateConfig:
     # on stdin (fire-and-forget, cwd = the delegate folder). Lets the owner
     # observe the room from outside the delegate.
     notify_command: str | None = None
+    # On `run`, best-effort `git pull --ff-only` of the checkout this code runs
+    # from, restarting on new code — members stay current without manual pulls.
+    auto_update: bool = True
 
     def token(self) -> str:
         env = os.environ.get("TERTULIA_DELEGATE_TOKEN", "").strip()
@@ -123,4 +126,5 @@ def load_config(path: str | Path) -> DelegateConfig:
         behaviour=behaviour,
         base_dir=base,
         notify_command=str(raw["notify_command"]) if raw.get("notify_command") else None,
+        auto_update=bool(raw.get("auto_update", True)),
     )

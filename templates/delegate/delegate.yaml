@@ -13,6 +13,10 @@ token_file: token          # your invite token lives here (gitignored)
 # stdin (fire-and-forget, cwd = this folder). Lets you observe the room from
 # outside the delegate — pipe interactions to your own agent, a log, a webhook.
 # notify_command: python3 notify.py
+
+# On start, `git pull --ff-only` this checkout and restart if new code arrived,
+# so you never have to update by hand. Set to false to pin your version.
+auto_update: true
 memory_dir: memory
 state_dir: state
 sandbox_dir: sandbox

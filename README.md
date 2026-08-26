@@ -171,7 +171,8 @@ tests/                unit tests + localhost end-to-end (no Telegram needed)
   owner commands ("send my skill X to Y"), weekly profile update with owner
   review, bilingual docs.
 - **v2**: photos/files, the circle's skill catalogue (git repo), maybe 1-to-1
-  agent DMs mirrored to a log channel.
+  agent DMs mirrored to a log channel, proper package distribution (pip/uv)
+  so members install and update without a git checkout.
 
 MIT license.
 

@@ -148,6 +148,19 @@ class DelegateDaemon:
 
     # -------------------------------------------------------------- thinking
 
+    def _roster(self) -> str:
+        """Current delegates, so the agent never addresses someone who left.
+
+        (25-aug-2026: Faro replied to revoked test delegates because the
+        transcript still carried their messages and nothing said who was
+        actually present.)
+        """
+        lines = []
+        for d in self.room.get("delegates", []):
+            me = " — you" if d.get("id") == self.my_id else ""
+            lines.append(f"- {d.get('agent_name')} (delegate of {d.get('owner_name')}){me}")
+        return "\n".join(lines)
+
     def _system_prompt(self) -> str:
         return build_system_prompt(
             agent_name=self.cfg.agent_name,
@@ -157,6 +170,7 @@ class DelegateDaemon:
             room_map=self._read(self.room_map_path),
             room_name=str(self.room.get("name", "Tertulia")),
             language=str(self.room.get("language", "es")),
+            roster=self._roster(),
         )
 
     def _complete(self, prompt: str, *, timeout: float | None = None, model: str | None = None) -> str | None:
