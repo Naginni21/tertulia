@@ -36,7 +36,7 @@ def delegate_config(base: Path, url: str, agent: str, owner: str) -> DelegateCon
     return DelegateConfig(
         concierge_url=url, agent_name=agent, owner_name=owner, personality="test",
         profile_path=base / "profile.md", memory_dir=base / "memory", state_dir=base / "state",
-        sandbox_dir=base / "sandbox", shared_dir=base / "shared", token_file=base / "token",
+        sandbox_dir=base / "sandbox", shared_dir=base / "shared", outbox_dir=base / "outbox", token_file=base / "token",
         owner_telegram_user_id=None,
         adapter=AdapterConfig(kind="scripted"),
         behaviour=BehaviourConfig(react_max_age_seconds=600, batch_settle_seconds=0.2),

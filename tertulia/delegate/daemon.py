@@ -23,6 +23,7 @@ from .prompt import (
     REPLY,
     SILENCE,
     build_memory_prompt,
+    build_owner_note_prompt,
     build_triage_prompt,
     build_reaction_prompt,
     build_system_prompt,
@@ -108,18 +109,18 @@ class DelegateDaemon:
     def run_once(self, *, wait: float = 25.0) -> bool:
         """One poll cycle. Returns True if a batch was processed."""
         events = self.client.inbox(self.cursor, wait)
-        if not events:
-            return False
-        if self.cfg.behaviour.batch_settle_seconds > 0:
-            self.sleep(self.cfg.behaviour.batch_settle_seconds)
-            events += self.client.inbox(events[-1]["seq"], 0)
-        try:
-            self._process_batch(events)
-        finally:
-            # Always advance: a batch that blew up is logged, not retried forever.
-            self.cursor = events[-1]["seq"]
-            self._save_state()
-        return True
+        if events:
+            if self.cfg.behaviour.batch_settle_seconds > 0:
+                self.sleep(self.cfg.behaviour.batch_settle_seconds)
+                events += self.client.inbox(events[-1]["seq"], 0)
+            try:
+                self._process_batch(events)
+            finally:
+                # Always advance: a batch that blew up is logged, not retried forever.
+                self.cursor = events[-1]["seq"]
+                self._save_state()
+        self._process_outbox()
+        return bool(events)
 
     # ------------------------------------------------------------------ state
 
@@ -381,6 +382,55 @@ class DelegateDaemon:
             log.info("said: %s", sent[:100].replace("\n", " "))
         except ConciergeError as exc:
             log.info("spontaneous message rejected by concierge: %s", exc)
+
+    def _process_outbox(self) -> None:
+        """Act on the owner's notes: the channel INTO the room for the owner
+        or their main agent. One note = one room message (or [SHARE]); notes
+        that cannot go out yet (no quota, adapter down) stay in the outbox
+        and are retried next cycle. Processed notes move to ``outbox/sent/``.
+        """
+        d = self.cfg.outbox_dir
+        if not d.is_dir():
+            return
+        notes = sorted(
+            p for p in d.iterdir()
+            if p.is_file() and not p.name.startswith(".") and p.suffix in (".md", ".txt")
+        )
+        if not notes:
+            return
+        room = self.client.room()
+        self.room = room
+        remaining = int(room.get("you", {}).get("spontaneous_remaining_24h", 0))
+        for path in notes:
+            if room.get("ritual"):
+                log.info("owner note %s waits: a ritual is running", path.name)
+                return
+            if remaining <= 0:
+                log.info("owner note %s waits: no spontaneous quota left", path.name)
+                return
+            note = path.read_text(encoding="utf-8").strip()
+            if note:
+                prompt = build_owner_note_prompt(
+                    transcript=self._transcript(), note=note,
+                    owner_name=self.cfg.owner_name, remaining=remaining,
+                )
+                text = self._complete_or_fallback(prompt)
+                if text is None:
+                    log.error("adapter failed on owner note %s; will retry next cycle", path.name)
+                    return
+                if text.strip() and text.strip() != SILENCE:
+                    try:
+                        sent = self._say_or_share(self._clip(text))
+                        remaining -= 1
+                        log.info("owner note %s -> room: %s", path.name, sent[:80].replace("\n", " "))
+                    except ConciergeError as exc:
+                        log.warning("owner note %s rejected by concierge (%s); will retry next cycle", path.name, exc)
+                        return
+                else:
+                    log.info("owner note %s needed no message", path.name)
+            sent_dir = d / "sent"
+            sent_dir.mkdir(exist_ok=True)
+            path.rename(sent_dir / f"{int(self.clock())}-{path.name}")
 
     def _handle_ritual_closed(self, ev: dict[str, Any]) -> None:
         for action in ev.get("after_close") or []:

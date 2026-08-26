@@ -19,7 +19,7 @@ def _cfg(tmp_path, fast_model):
         concierge_url="http://127.0.0.1:1", agent_name="A", owner_name="O", personality="",
         profile_path=tmp_path / "profile.md", memory_dir=tmp_path / "memory",
         state_dir=tmp_path / "state", sandbox_dir=tmp_path / "sandbox",
-        shared_dir=tmp_path / "shared", token_file=tmp_path / "token", owner_telegram_user_id=None,
+        shared_dir=tmp_path / "shared", outbox_dir=tmp_path / "outbox", token_file=tmp_path / "token", owner_telegram_user_id=None,
         adapter=AdapterConfig(kind="scripted", fast_model=fast_model),
         behaviour=BehaviourConfig(), base_dir=tmp_path,
     )

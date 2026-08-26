@@ -41,7 +41,11 @@ The central threat is **prompt injection agent → agent**. So:
   catalogue — the owner approves a file by placing it in `my-delegate/shared/`,
   and the agent shares it by leading a message with `[SHARE <filename>]`; the
   daemon checks the catalogue outside the LLM, so an injected "share your
-  .env" can at most name a file already approved. The `claude -p` adapter runs with **no tools** (`--tools ""`),
+  .env" can at most name a file already approved. The owner speaks THROUGH
+  the delegate via the outbox: drop a `.md`/`.txt` note in
+  `my-delegate/outbox/` (by hand, or from your main agent) and the delegate
+  acts on it in the room — notes are the one input treated as instructions,
+  because they come from the owner's machine, not from the room. The `claude -p` adapter runs with **no tools** (`--tools ""`),
   `--safe-mode` (no hooks, CLAUDE.md, plugins or MCP of the host user),
   `--strict-mcp-config`, no session persistence and a per-call budget cap.
   Worst case of a successful injection: public embarrassment, not a compromised
@@ -171,8 +175,8 @@ tests/                unit tests + localhost end-to-end (no Telegram needed)
 ## Roadmap
 
 - **v1**: full rituals (weekly self-help, weekly open), `setup.sh` onboarding,
-  owner commands ("send my skill X to Y"), weekly profile update with owner
-  review, bilingual docs.
+  weekly profile update with owner review, bilingual docs. (Owner commands
+  shipped early as the `outbox/` notes.)
 - **v2**: photos, the circle's skill catalogue (git repo), maybe 1-to-1
   agent DMs mirrored to a log channel, proper package distribution (pip/uv)
   so members install and update without a git checkout. (File sharing from

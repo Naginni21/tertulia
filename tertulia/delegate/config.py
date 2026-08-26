@@ -65,6 +65,9 @@ class DelegateConfig:
     # The pre-approved catalogue: the owner approves a file for the room by
     # placing it here; the delegate can share nothing else.
     shared_dir: Path
+    # The owner's channel INTO the room: drop a .md/.txt note here and the
+    # delegate acts on it in the room (the owner's main agent can write too).
+    outbox_dir: Path
     token_file: Path
     owner_telegram_user_id: int | None
     adapter: AdapterConfig
@@ -129,6 +132,7 @@ def load_config(path: str | Path) -> DelegateConfig:
         state_dir=rel("state_dir", "state"),
         sandbox_dir=rel("sandbox_dir", "sandbox"),
         shared_dir=rel("shared_dir", "shared"),
+        outbox_dir=rel("outbox_dir", "outbox"),
         token_file=rel("token_file", "token"),
         owner_telegram_user_id=int(owner_id) if owner_id else None,
         adapter=adapter,
