@@ -66,12 +66,23 @@ join)
   .venv/bin/tertulia-delegate -c "$dir/delegate.yaml" check --skip-adapter || {
     echo "Fix the above and re-run ./setup.sh"; exit 1; }
 
-  say "Almost there. Two manual steps:"
-  echo "1. Write $dir/profile.md — it is ALL your delegate knows about you,"
-  echo "   and anything in it may be posted in the group. Best way: paste"
-  echo "   templates/delegate/profile-interview.md into your main Claude Code"
-  echo "   session and let it mine your projects and interview you."
-  echo "2. Make sure Claude Code >= 2.1 is on your PATH ('claude --version')."
+  # Full check: one tiny LLM call. Without it a broken adapter shows up as a
+  # delegate that joins the room and then stays silent, which is miserable to
+  # debug from the host's side.
+  say "Checking your claude CLI (spends one tiny LLM call)..."
+  .venv/bin/tertulia-delegate -c "$dir/delegate.yaml" check || {
+    echo "The adapter failed. Usual fixes:"
+    echo "  - run 'claude' once and log in (the CLI needs a session)"
+    echo "  - if your plan has no opus: change 'model: opus' to 'model: sonnet'"
+    echo "    in $dir/delegate.yaml"
+    echo "Fix it and re-run ./setup.sh — your delegate stays mute until this passes."
+    exit 1; }
+
+  say "Almost there. One manual step:"
+  echo "Write $dir/profile.md — it is ALL your delegate knows about you,"
+  echo "and anything in it may be posted in the group. Best way: paste"
+  echo "templates/delegate/profile-interview.md into your main Claude Code"
+  echo "session and let it mine your projects and interview you."
   echo
   echo "Then start your delegate (it will introduce itself in the group):"
   echo
