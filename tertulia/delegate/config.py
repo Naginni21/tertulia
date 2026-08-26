@@ -50,6 +50,10 @@ class BehaviourConfig:
     transcript_window: int = 40
     # After the first event of a batch, wait this long to gather the rest.
     batch_settle_seconds: float = 2.0
+    # Refresh the room map after this many room messages outside rituals —
+    # commitments made in spontaneous conversation must not be forgotten.
+    # 0 disables (rituals still update the map on close).
+    map_update_every_messages: int = 20
 
 
 @dataclass

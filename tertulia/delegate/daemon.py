@@ -292,6 +292,10 @@ class DelegateDaemon:
             self._handle_ritual_closed(ev)
         if messages and not turns:
             self._handle_messages(messages, now)
+        self._state["msgs_since_map"] = int(self._state.get("msgs_since_map", 0)) + len(messages)
+        every = self.cfg.behaviour.map_update_every_messages
+        if every > 0 and not turns and not closed and int(self._state["msgs_since_map"]) >= every:
+            self._refresh_room_map()
 
     def _handle_turn(self, ev: dict[str, Any], now: float) -> None:
         remaining = float(ev["deadline"]) - now
@@ -451,6 +455,27 @@ class DelegateDaemon:
             sent_dir.mkdir(exist_ok=True)
             path.rename(sent_dir / f"{int(self.clock())}-{path.name}")
 
+    def _refresh_room_map(self) -> None:
+        """Rituals update the room map on close, but a long spontaneous
+        conversation never did — commitments made there (dates, data owed)
+        were forgotten. Refresh the notes every N room messages instead.
+        """
+        prompt = build_memory_prompt(
+            current_notes=self._read(self.room_map_path),
+            ritual_transcript=self._transcript(limit=60),
+            instruction=(
+                "Update your notes with what happened in the recent conversation: "
+                "commitments and their dates, data people owe or expect, and new "
+                "facts about the people. Keep what is still true; drop what is stale."
+            ),
+        )
+        text = self._complete(prompt)
+        if text and text.strip() and text.strip() != SILENCE:
+            self.room_map_path.parent.mkdir(parents=True, exist_ok=True)
+            self.room_map_path.write_text(text.strip() + "\n", encoding="utf-8")
+            log.info("room map refreshed after %s message(s)", self._state.get("msgs_since_map"))
+        self._state["msgs_since_map"] = 0
+
     def _handle_ritual_closed(self, ev: dict[str, Any]) -> None:
         for action in ev.get("after_close") or []:
             if action.get("action") != "update_memory":
@@ -467,3 +492,4 @@ class DelegateDaemon:
                 self.room_map_path.parent.mkdir(parents=True, exist_ok=True)
                 self.room_map_path.write_text(text.strip() + "\n", encoding="utf-8")
                 log.info("room map updated (%d chars) -> %s", len(text), self.room_map_path)
+                self._state["msgs_since_map"] = 0
