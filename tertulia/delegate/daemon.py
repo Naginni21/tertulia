@@ -314,7 +314,14 @@ class DelegateDaemon:
                 return
         prompt = build_reaction_prompt(transcript=transcript, new_messages=new_text, remaining=remaining)
         text = self._complete(prompt)
-        if not text or text.strip().startswith(SILENCE):
+        # Failure and silence are different stories: "adapter failed" after a
+        # human addressed the delegate is a dropped order, not discretion.
+        # (26-aug-2026: Faro ignored a direct instruction because the voice
+        # call blew max_budget_usd and the log said "decided to stay quiet".)
+        if text is None:
+            log.error("adapter failed while reacting to %d new message(s); no reply sent", len(fresh))
+            return
+        if not text.strip() or text.strip().startswith(SILENCE):
             log.info("decided to stay quiet after %d new message(s)", len(fresh))
             return
         text = self._clip(text)
