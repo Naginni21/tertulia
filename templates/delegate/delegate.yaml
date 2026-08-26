@@ -15,8 +15,10 @@ token_file: token          # your invite token lives here (gitignored)
 # notify_command: python3 notify.py
 
 # On start, `git pull --ff-only` this checkout and restart if new code arrived,
-# so you never have to update by hand. Set to false to pin your version.
-auto_update: true
+# so you never update by hand. Trust decision, not convenience: the daemon runs
+# unsandboxed as you, so `true` lets whoever controls the repo run code on your
+# machine. setup.sh asks; flip it here whenever you change your mind.
+auto_update: AUTO_UPDATE
 memory_dir: memory
 state_dir: state
 sandbox_dir: sandbox

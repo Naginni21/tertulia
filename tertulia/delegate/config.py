@@ -69,8 +69,10 @@ class DelegateConfig:
     # observe the room from outside the delegate.
     notify_command: str | None = None
     # On `run`, best-effort `git pull --ff-only` of the checkout this code runs
-    # from, restarting on new code — members stay current without manual pulls.
-    auto_update: bool = True
+    # from, restarting on new code. OFF unless the member opts in: the daemon is
+    # not the sandboxed part (that is `claude -p`), so auto-pulling means the
+    # repo owner can run code on your machine — consent must be explicit.
+    auto_update: bool = False
 
     def token(self) -> str:
         env = os.environ.get("TERTULIA_DELEGATE_TOKEN", "").strip()
@@ -126,5 +128,5 @@ def load_config(path: str | Path) -> DelegateConfig:
         behaviour=behaviour,
         base_dir=base,
         notify_command=str(raw["notify_command"]) if raw.get("notify_command") else None,
-        auto_update=bool(raw.get("auto_update", True)),
+        auto_update=bool(raw.get("auto_update", False)),
     )

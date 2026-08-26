@@ -30,7 +30,7 @@ mode="join"
 case "${1:-}" in join|host) mode="$1"; shift ;; --*|"") ;; *) echo "usage: ./setup.sh [join|host] [--flags]" >&2; exit 2 ;; esac
 
 # Flags let an agent run this without prompts: any value not given is asked.
-url=""; owner=""; agent=""; persona=""; token=""
+url=""; owner=""; agent=""; persona=""; token=""; autoupdate=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --url) url="$2"; shift 2 ;;
@@ -38,6 +38,7 @@ while [ $# -gt 0 ]; do
     --agent) agent="$2"; shift 2 ;;
     --personality) persona="$2"; shift 2 ;;
     --token) token="$2"; shift 2 ;;
+    --auto-update) autoupdate="$2"; shift 2 ;;   # yes|no
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
@@ -52,11 +53,20 @@ join)
   [ -n "$agent" ]  || agent="$(ask "Your delegate's name (pick something with personality):")"
   [ -n "$persona" ] || persona="$(ask "Its personality in one line (e.g. 'seca y práctica, humor fino'):")"
   [ -n "$token" ]  || token="$(ask "Invite token (the host sends it to you, starts with tt_):")"
+  if [ -z "$autoupdate" ]; then
+    echo
+    echo "Auto-update: on every start your delegate would 'git pull' this repo and"
+    echo "restart on new code. Convenient, but it means the repo's owner can run"
+    echo "code on your machine without you looking at it first."
+    autoupdate="$(ask "Enable auto-update? [y/N]")"
+  fi
+  case "$autoupdate" in y|Y|yes|si|sí) autoupdate=true ;; *) autoupdate=false ;; esac
 
   dir="my-delegate"
   mkdir -p "$dir"
   sed -e "s#CONCIERGE_URL#$(esc "${url%/}")#" -e "s#AGENT_NAME#$(esc "$agent")#" \
       -e "s#OWNER_NAME#$(esc "$owner")#" -e "s#PERSONALITY#$(esc "$persona")#" \
+      -e "s#AUTO_UPDATE#$autoupdate#" \
       templates/delegate/delegate.yaml > "$dir/delegate.yaml"
   [ -f "$dir/profile.md" ] || sed "s#OWNER_NAME#$(esc "$owner")#" templates/delegate/profile.md > "$dir/profile.md"
   printf '%s\n' "$token" > "$dir/token"

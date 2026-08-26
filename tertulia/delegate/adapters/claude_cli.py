@@ -78,6 +78,10 @@ class ClaudeCliAdapter:
                 input=prompt,
                 capture_output=True,
                 text=True,
+                # text=True alone uses the locale encoding — cp1252 on Windows,
+                # which dies on the emoji/arrows the room text carries.
+                encoding="utf-8",
+                errors="replace",
                 timeout=timeout or self.timeout,
                 cwd=str(self.cwd) if self.cwd else None,
             )

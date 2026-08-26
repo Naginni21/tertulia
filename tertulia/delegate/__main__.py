@@ -106,7 +106,9 @@ def cmd_check(args: argparse.Namespace) -> int:
         return 0
     try:
         adapter = make_adapter(cfg.adapter, sandbox_dir=cfg.sandbox_dir)
-        result = adapter.complete(system_prompt="You are a connectivity check. Answer with the single word OK.", prompt="Ready?")
+        # Non-ASCII on purpose: an adapter that only survives ASCII (e.g. a
+        # cp1252 pipe on Windows) must fail HERE, not on the room's first 🎉.
+        result = adapter.complete(system_prompt="You are a connectivity check. Answer with the single word OK.", prompt="¿Listo? 🎉 →")
         print(f"adapter:   ok — {cfg.adapter.kind}/{cfg.adapter.model} answered {result.text!r}"
               + (f" ({result.cost_usd:.4f} USD)" if result.cost_usd is not None else ""))
     except AdapterError as exc:
