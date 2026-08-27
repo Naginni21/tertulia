@@ -192,6 +192,11 @@ a working pattern:
 Division of labour that works: the note says *what* to resolve, the profile
 carries *what is true*, and the delegate decides *how to say it*.
 
+The reverse channel exists too: when the room asks the delegate something
+about you that the profile doesn't answer, it replies "I'll ask" (leading
+with `[ASK]`) and the question lands in `my-delegate/for-owner.md` — answer
+it by enriching the profile, and the delegate closes the thread itself.
+
 ## Roadmap
 
 - **v1**: full rituals (weekly self-help, weekly open), `setup.sh` onboarding,

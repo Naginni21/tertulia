@@ -38,6 +38,10 @@ ROOM_MAP_FILE = "room-map.md"
 
 # The agent's only way to share a file: "[SHARE <name>]" leading its message.
 _SHARE_RE = re.compile(r"^\s*\[SHARE\s+([^\]\n]+)\]\s*", re.IGNORECASE)
+# "[ASK]" leading a message: the agent owes its owner a question — besides
+# posting the reply, the daemon files it where the owner will see it.
+_ASK_RE = re.compile(r"^\s*\[ASK\]\s*", re.IGNORECASE)
+FOR_OWNER_FILE = "for-owner.md"
 
 
 class DelegateDaemon:
@@ -195,6 +199,10 @@ class DelegateDaemon:
         The catalogue check lives HERE, outside the LLM: an injected "share your
         .env" can at most name a file the owner already approved.
         """
+        ask = _ASK_RE.match(text)
+        if ask:
+            text = text[ask.end():].strip()
+            self._file_question_for_owner(text)
         m = _SHARE_RE.match(text)
         if not m:
             self.client.say(text, turn_id=turn_id)
@@ -391,6 +399,18 @@ class DelegateDaemon:
             log.info("said: %s", sent[:100].replace("\n", " "))
         except ConciergeError as exc:
             log.info("spontaneous message rejected by concierge: %s", exc)
+
+    def _file_question_for_owner(self, text: str) -> None:
+        """Append an [ASK] to ``for-owner.md``: the delegate's questions must
+        reach the owner even without a wired-up main agent watching the room."""
+        try:
+            path = self.cfg.base_dir / FOR_OWNER_FILE
+            stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(self.clock()))
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(f"- [{stamp}] {text}\n")
+            log.info("question for the owner filed in %s", FOR_OWNER_FILE)
+        except OSError:
+            log.warning("could not write %s", FOR_OWNER_FILE, exc_info=True)
 
     def _process_outbox(self) -> None:
         """Act on the owner's notes: the channel INTO the room for the owner

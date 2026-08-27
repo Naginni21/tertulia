@@ -66,3 +66,21 @@ def test_daemon_share_directive_respects_catalogue(tmp_path):
     assert calls[0] == ("share", "ads-kit.zip", "ahí va el paquete", None)
     # A file outside the catalogue never leaves the machine: text only.
     assert calls[1][0] == "say" and "toma" in calls[1][1]
+
+
+def test_ask_directive_files_question_and_still_speaks(tmp_path):
+    cfg = DelegateConfig(
+        concierge_url="http://127.0.0.1:1", agent_name="A", owner_name="O", personality="",
+        profile_path=tmp_path / "profile.md", memory_dir=tmp_path / "memory",
+        state_dir=tmp_path / "state", sandbox_dir=tmp_path / "sandbox",
+        shared_dir=tmp_path / "shared", outbox_dir=tmp_path / "outbox",
+        token_file=tmp_path / "token", owner_telegram_user_id=None,
+        adapter=AdapterConfig(kind="scripted"), behaviour=BehaviourConfig(), base_dir=tmp_path,
+    )
+    daemon = DelegateDaemon(cfg, client=ShareStubClient(), adapter=None)
+    daemon._say_or_share("[ASK] Chasqui pregunta el umbral exacto; no me consta, lo pregunto.")
+
+    assert daemon.client.calls[0][0] == "say"
+    assert "no me consta" in daemon.client.calls[0][1]
+    filed = (tmp_path / "for-owner.md").read_text(encoding="utf-8")
+    assert "umbral exacto" in filed and filed.startswith("- [")
