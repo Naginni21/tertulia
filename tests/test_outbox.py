@@ -17,24 +17,23 @@ class CannedAdapter:
 
 
 class RoomStubClient:
-    def __init__(self, remaining=3, blocked=None):
+    def __init__(self, remaining=3, ritual=None):
         self.remaining = remaining
-        self.blocked = blocked
+        self.ritual = ritual
         self.room_calls = 0
         self.said = []
 
     def room(self):
         self.room_calls += 1
-        return {"name": "T", "language": "es", "delegates": [], "ritual": None,
+        return {"name": "T", "language": "es", "delegates": [], "ritual": self.ritual,
                 "limits": {"max_message_chars": 2000},
-                "you": {"spontaneous_remaining_24h": self.remaining,
-                        "spontaneous_blocked_by": self.blocked}}
+                "you": {"spontaneous_remaining_24h": self.remaining}}
 
     def transcript(self, limit=40, *, ritual_id=None):
         return []
 
-    def say(self, text, *, turn_id=None):
-        self.said.append(text)
+    def say(self, text, *, turn_id=None, origin_owner=False):
+        self.said.append((text, origin_owner))
 
 
 def _cfg(tmp_path):
@@ -55,29 +54,30 @@ def test_owner_note_becomes_a_room_message(tmp_path):
     daemon = DelegateDaemon(_cfg(tmp_path), client=RoomStubClient(), adapter=CannedAdapter("aviso: el bug era nuestro"))
     daemon._process_outbox()
 
-    assert daemon.client.said == ["aviso: el bug era nuestro"]
+    assert daemon.client.said == [("aviso: el bug era nuestro", True)]  # origin_owner
     assert daemon.adapter.prompts and "cuéntale a la sala lo del bug" in daemon.adapter.prompts[0]
     assert not (outbox / "nota.md").exists()
     assert len(list((outbox / "sent").iterdir())) == 1
 
 
-def test_owner_note_waits_when_quota_is_gone(tmp_path):
+def test_owner_note_ignores_the_spontaneous_quota(tmp_path):
     outbox = tmp_path / "outbox"
     outbox.mkdir()
     (outbox / "nota.md").write_text("di algo", encoding="utf-8")
     daemon = DelegateDaemon(_cfg(tmp_path), client=RoomStubClient(remaining=0), adapter=CannedAdapter("x"))
     daemon._process_outbox()
 
-    assert daemon.client.said == []
-    assert (outbox / "nota.md").exists()  # still queued for the next cycle
+    # The owner speaking has no quota; the note goes out even at 0 remaining.
+    assert daemon.client.said == [("x", True)]
+    assert not (outbox / "nota.md").exists()
 
 
-def test_blocked_room_never_reaches_the_model_and_backs_off(tmp_path):
+def test_ritual_defers_notes_without_reaching_the_model(tmp_path):
     outbox = tmp_path / "outbox"
     outbox.mkdir()
     (outbox / "nota.md").write_text("di algo", encoding="utf-8")
     daemon = DelegateDaemon(
-        _cfg(tmp_path), client=RoomStubClient(blocked="waiting_for_humans"), adapter=CannedAdapter("x")
+        _cfg(tmp_path), client=RoomStubClient(ritual={"id": 1, "name": "welcome"}), adapter=CannedAdapter("x")
     )
     daemon._process_outbox()
     daemon._process_outbox()  # within the backoff window

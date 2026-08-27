@@ -271,11 +271,22 @@ class Concierge:
         limit = max(1, min(int(limit), 200))
         return [m.to_api() for m in self.store.recent_messages(limit, ritual_id=ritual_id)]
 
-    def _gate_outgoing(self, delegate: Delegate, turn_id: int | None, now: float) -> int | None:
+    def _gate_outgoing(self, delegate: Delegate, turn_id: int | None, now: float,
+                       *, origin_owner: bool = False) -> int | None:
         """Common gates for anything a delegate posts (text or file); claims the
-        turn so the ticker does not expire it mid-send. Returns the ritual id."""
+        turn so the ticker does not expire it mid-send. Returns the ritual id.
+
+        ``origin_owner`` marks the message as the owner speaking through their
+        delegate (an outbox note): humans have no spontaneous quota, so neither
+        does their deferred speech. The flag is claimed by the owner's own
+        daemon — same trust level as everything else on the owner's machine.
+        """
         if not delegate.agent_name:
             raise ApiError(409, "hello_first", "call /v0/hello before speaking")
+        if turn_id is None and origin_owner:
+            if self._ritual is not None:
+                raise ApiError(429, "ritual_running", "a ritual is running; owner notes wait")
+            return None
         if turn_id is not None:
             with self._lock:
                 turn = self.store.turn(turn_id)
@@ -301,7 +312,7 @@ class Concierge:
 
     def _record_outgoing(
         self, delegate: Delegate, *, now: float, text: str, tg_id: int | None,
-        ritual_id: int | None, turn_id: int | None,
+        ritual_id: int | None, turn_id: int | None, origin_owner: bool = False,
     ) -> dict[str, Any]:
         message = self.store.add_message(
             at=now,
@@ -313,6 +324,7 @@ class Concierge:
             telegram_message_id=tg_id,
             ritual_id=ritual_id,
             turn_id=turn_id,
+            origin_owner=origin_owner,
         )
         log.info("room <- %s: %s", self._label(delegate), text[:80])
         if turn_id is not None:
@@ -323,13 +335,14 @@ class Concierge:
         self._broadcast_message(message, exclude=delegate.id)
         return {"ok": True, "message_id": message.id}
 
-    def say(self, delegate: Delegate, text: str, turn_id: int | None) -> dict[str, Any]:
+    def say(self, delegate: Delegate, text: str, turn_id: int | None,
+            origin_owner: bool = False) -> dict[str, Any]:
         text = (text or "").strip()
         reason = check_text(self.limits, text)
         if reason:
             raise ApiError(400, reason)
         now = self.clock()
-        ritual_id = self._gate_outgoing(delegate, turn_id, now)
+        ritual_id = self._gate_outgoing(delegate, turn_id, now, origin_owner=origin_owner)
         try:
             tg_id = self._send_delegate_message(delegate, text)
         except TelegramError as exc:
@@ -337,10 +350,12 @@ class Concierge:
                 self.store.set_turn_status(turn_id, "open")
             raise ApiError(502, "telegram_error", str(exc)) from exc
         return self._record_outgoing(
-            delegate, now=now, text=text, tg_id=tg_id, ritual_id=ritual_id, turn_id=turn_id
+            delegate, now=now, text=text, tg_id=tg_id, ritual_id=ritual_id, turn_id=turn_id,
+            origin_owner=origin_owner,
         )
 
-    def share(self, delegate: Delegate, filename: str, content: bytes, caption: str, turn_id: int | None) -> dict[str, Any]:
+    def share(self, delegate: Delegate, filename: str, content: bytes, caption: str, turn_id: int | None,
+              origin_owner: bool = False) -> dict[str, Any]:
         """A delegate posts a file from its owner-approved catalogue.
 
         Same gates as ``say``: a share is a room message with an attachment, so
@@ -357,7 +372,7 @@ class Concierge:
         # Telegram caps captions at 1024 chars, below the room's text limit.
         caption = (caption or "").strip()[:1000]
         now = self.clock()
-        ritual_id = self._gate_outgoing(delegate, turn_id, now)
+        ritual_id = self._gate_outgoing(delegate, turn_id, now, origin_owner=origin_owner)
         header = self.t("delegate_header", agent=delegate.display_name, owner=delegate.owner_name)
         caption_html = f"<b>{html_escape(header)}</b>"
         if caption:
@@ -371,7 +386,8 @@ class Concierge:
         tg_id = result.get("message_id") if isinstance(result, dict) else None
         text = self.t("share", filename=filename) + (f": {caption}" if caption else "")
         return self._record_outgoing(
-            delegate, now=now, text=text, tg_id=tg_id, ritual_id=ritual_id, turn_id=turn_id
+            delegate, now=now, text=text, tg_id=tg_id, ritual_id=ritual_id, turn_id=turn_id,
+            origin_owner=origin_owner,
         )
 
     def pass_turn(self, delegate: Delegate, turn_id: int, reason: str | None = None) -> dict[str, Any]:

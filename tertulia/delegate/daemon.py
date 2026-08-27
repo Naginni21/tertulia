@@ -193,7 +193,7 @@ class DelegateDaemon:
             catalogue="\n".join(f"- {name}" for name in self._catalogue()),
         )
 
-    def _say_or_share(self, text: str, *, turn_id: int | None = None) -> str:
+    def _say_or_share(self, text: str, *, turn_id: int | None = None, origin_owner: bool = False) -> str:
         """Deliver the agent's reply, honouring a leading [SHARE <file>] directive.
 
         The catalogue check lives HERE, outside the LLM: an injected "share your
@@ -205,17 +205,17 @@ class DelegateDaemon:
             self._file_question_for_owner(text)
         m = _SHARE_RE.match(text)
         if not m:
-            self.client.say(text, turn_id=turn_id)
+            self.client.say(text, turn_id=turn_id, origin_owner=origin_owner)
             return text
         name = m.group(1).strip()
         rest = text[m.end():].strip()
         if name in self._catalogue():
-            self.client.share(self.cfg.shared_dir / name, rest, turn_id=turn_id)
+            self.client.share(self.cfg.shared_dir / name, rest, turn_id=turn_id, origin_owner=origin_owner)
             log.info("shared %r from the catalogue", name)
             return f"[{name}] {rest}"
         log.warning("agent asked to share %r, which is not in the catalogue; sending text only", name)
         fallback = rest or text
-        self.client.say(fallback, turn_id=turn_id)
+        self.client.say(fallback, turn_id=turn_id, origin_owner=origin_owner)
         return fallback
 
     def _complete(self, prompt: str, *, timeout: float | None = None, model: str | None = None) -> str | None:
@@ -435,20 +435,14 @@ class DelegateDaemon:
             return
         room = self.client.room()
         self.room = room
-        you = room.get("you", {})
-        remaining = int(you.get("spontaneous_remaining_24h", 0))
-        if "spontaneous_blocked_by" in you:
-            blocked = you.get("spontaneous_blocked_by")
-        else:  # older concierge: best local approximation
-            blocked = "ritual_running" if room.get("ritual") else ("daily_quota" if remaining <= 0 else None)
-        if blocked:
-            log.info("%d owner note(s) wait: %s", len(notes), blocked)
+        remaining = int(room.get("you", {}).get("spontaneous_remaining_24h", 0))
+        # Owner notes are the owner speaking (origin_owner): no quota applies.
+        # Only a running ritual makes them wait.
+        if room.get("ritual"):
+            log.info("%d owner note(s) wait: ritual running", len(notes))
             self._outbox_backoff_until = self.clock() + 300
             return
         for path in notes:
-            if remaining <= 0:
-                log.info("owner note %s waits: no spontaneous quota left", path.name)
-                return
             note = path.read_text(encoding="utf-8").strip()
             if note:
                 prompt = build_owner_note_prompt(
@@ -461,8 +455,7 @@ class DelegateDaemon:
                     return
                 if text.strip() and text.strip() != SILENCE:
                     try:
-                        sent = self._say_or_share(self._clip(text))
-                        remaining -= 1
+                        sent = self._say_or_share(self._clip(text), origin_owner=True)
                         log.info("owner note %s -> room: %s", path.name, sent[:80].replace("\n", " "))
                     except ConciergeError as exc:
                         log.warning("owner note %s rejected by concierge (%s); backing off", path.name, exc)

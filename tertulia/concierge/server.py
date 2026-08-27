@@ -111,7 +111,9 @@ def make_handler(app: Concierge) -> type[BaseHTTPRequestHandler]:
             if method == "POST" and path == "/v0/say":
                 body = self._read_json()
                 turn_id = body.get("turn_id")
-                return app.say(delegate, str(body.get("text", "")), int(turn_id) if turn_id is not None else None)
+                return app.say(delegate, str(body.get("text", "")),
+                               int(turn_id) if turn_id is not None else None,
+                               origin_owner=bool(body.get("origin_owner")))
             if method == "POST" and path == "/v0/pass":
                 body = self._read_json()
                 if body.get("turn_id") is None:
@@ -127,6 +129,7 @@ def make_handler(app: Concierge) -> type[BaseHTTPRequestHandler]:
                 return app.share(
                     delegate, str(body.get("filename", "")), content,
                     str(body.get("caption", "")), int(turn_id) if turn_id is not None else None,
+                    origin_owner=bool(body.get("origin_owner")),
                 )
             raise ApiError(HTTPStatus.NOT_FOUND, "not_found", f"{method} {path}")
 

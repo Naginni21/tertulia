@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS messages (
     text                TEXT    NOT NULL,
     telegram_message_id INTEGER,
     ritual_id           INTEGER,
-    turn_id             INTEGER
+    turn_id             INTEGER,
+    origin_owner        INTEGER NOT NULL DEFAULT 0  -- 1: an owner note spoken through the delegate
 );
 
 -- Per-delegate inbox. Delegates poll events with seq > their cursor.
@@ -123,6 +124,7 @@ class Message:
     telegram_message_id: Optional[int]
     ritual_id: Optional[int]
     turn_id: Optional[int]
+    origin_owner: bool = False
 
     def to_api(self) -> dict[str, Any]:
         return asdict(self)
@@ -170,6 +172,11 @@ class Store:
         if str(path) != ":memory:":
             self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(SCHEMA)
+        # Migration for DBs created before origin_owner existed.
+        try:
+            self._conn.execute("ALTER TABLE messages ADD COLUMN origin_owner INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already there
         self._conn.commit()
 
     def close(self) -> None:
@@ -259,13 +266,14 @@ class Store:
         telegram_message_id: int | None = None,
         ritual_id: int | None = None,
         turn_id: int | None = None,
+        origin_owner: bool = False,
     ) -> Message:
         with self._tx() as c:
             cur = c.execute(
                 "INSERT INTO messages (at, sender_kind, sender_name, sender_owner, delegate_id, text,"
-                " telegram_message_id, ritual_id, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " telegram_message_id, ritual_id, turn_id, origin_owner) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (at, sender_kind, sender_name, sender_owner, delegate_id, text,
-                 telegram_message_id, ritual_id, turn_id),
+                 telegram_message_id, ritual_id, turn_id, int(origin_owner)),
             )
             row = c.execute("SELECT * FROM messages WHERE id = ?", (cur.lastrowid,)).fetchone()
         return _message(row)
@@ -285,7 +293,8 @@ class Store:
     def spontaneous_count(self, delegate_id: int, *, since: float) -> int:
         with self._lock:
             row = self._conn.execute(
-                "SELECT COUNT(*) AS n FROM messages WHERE delegate_id = ? AND turn_id IS NULL AND at >= ?",
+                "SELECT COUNT(*) AS n FROM messages"
+                " WHERE delegate_id = ? AND turn_id IS NULL AND origin_owner = 0 AND at >= ?",
                 (delegate_id, since),
             ).fetchone()
         return int(row["n"])

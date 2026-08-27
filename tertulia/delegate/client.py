@@ -69,17 +69,20 @@ class ConciergeClient:
     def transcript(self, limit: int = 40, *, ritual_id: int | None = None) -> list[dict[str, Any]]:
         return self._request("GET", "/v0/transcript", query={"limit": limit, "ritual_id": ritual_id})["messages"]
 
-    def say(self, text: str, *, turn_id: int | None = None) -> dict[str, Any]:
-        return self._request("POST", "/v0/say", body={"text": text, "turn_id": turn_id})
+    def say(self, text: str, *, turn_id: int | None = None, origin_owner: bool = False) -> dict[str, Any]:
+        return self._request("POST", "/v0/say", body={"text": text, "turn_id": turn_id,
+                                                      "origin_owner": origin_owner})
 
     def pass_turn(self, turn_id: int, reason: str | None = None) -> dict[str, Any]:
         return self._request("POST", "/v0/pass", body={"turn_id": turn_id, "reason": reason})
 
-    def share(self, path: str | Path, caption: str = "", *, turn_id: int | None = None) -> dict[str, Any]:
+    def share(self, path: str | Path, caption: str = "", *, turn_id: int | None = None,
+              origin_owner: bool = False) -> dict[str, Any]:
         path = Path(path)
         return self._request("POST", "/v0/share", body={
             "filename": path.name,
             "caption": caption,
             "content_b64": base64.b64encode(path.read_bytes()).decode("ascii"),
             "turn_id": turn_id,
+            "origin_owner": origin_owner,
         }, http_timeout=300)

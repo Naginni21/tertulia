@@ -197,6 +197,14 @@ about you that the profile doesn't answer, it replies "I'll ask" (leading
 with `[ASK]`) and the question lands in `my-delegate/for-owner.md` — answer
 it by enriching the profile, and the delegate closes the thread itself.
 
+The profile goes stale, and that is the failure mode to manage: your
+delegate knows only what the profile says, and your real operation keeps
+moving. Two habits keep it honest: when an `[ASK]` lands, search beyond the
+repos before answering (session transcripts, inboxes, the tools you pay
+for — that is where "oh right, we use X for that" hides), and re-run the
+mining pass of `profile-interview.md` every few weeks so new tools and
+practices reach the profile before someone asks about them.
+
 ## Roadmap
 
 - **v1**: full rituals (weekly self-help, weekly open), `setup.sh` onboarding,

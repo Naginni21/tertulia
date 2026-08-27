@@ -40,10 +40,10 @@ class ShareStubClient:
     def __init__(self):
         self.calls = []
 
-    def say(self, text, *, turn_id=None):
+    def say(self, text, *, turn_id=None, origin_owner=False):
         self.calls.append(("say", text, turn_id))
 
-    def share(self, path, caption="", *, turn_id=None):
+    def share(self, path, caption="", *, turn_id=None, origin_owner=False):
         self.calls.append(("share", Path(path).name, caption, turn_id))
 
 
@@ -84,3 +84,18 @@ def test_ask_directive_files_question_and_still_speaks(tmp_path):
     assert "no me consta" in daemon.client.calls[0][1]
     filed = (tmp_path / "for-owner.md").read_text(encoding="utf-8")
     assert "umbral exacto" in filed and filed.startswith("- [")
+
+
+def test_owner_origin_bypasses_quota_at_the_concierge(tmp_path, fake_tg: FakeTelegram):
+    cfg = make_config(tmp_path)
+    store = Store(cfg.db_path)
+    app = Concierge(cfg, store, fake_tg, {})
+    delegate, _ = store.create_delegate("Tomás")
+    app.hello(delegate, "Brisa")
+    delegate = store.delegate(delegate.id)
+    for i in range(3):
+        app.say(delegate, f"mensaje {i}", None)
+    # Quota exhausted for the delegate's own speech, but the owner's is free:
+    app.say(delegate, "nota del dueño", None, origin_owner=True)
+    # ...and it does not eat the delegate's future quota either.
+    assert store.spontaneous_count(delegate.id, since=0) == 3

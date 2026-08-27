@@ -13,6 +13,11 @@ group my friends read. Work in the room's language.
   actually working on THIS week? What is blocking me?
 - My custom Claude Code skills, hooks and templates: which ones would be
   genuinely useful to a friend who also uses Claude Code?
+- My OPERATIONAL stack, per activity: the third-party services and tools I
+  actually run things with (email warmup, CRM, schedulers, monitors, ad
+  platforms, hosting). Look beyond the repos — session transcripts and
+  connected inboxes often name tools the code never mentions. Friends ask
+  "how do you do X?" and the honest answer usually includes a tool name.
 
 ## 2. Interview me (only what the machine cannot tell you)
 This part is about who I am outside the repos, and it is different for every
