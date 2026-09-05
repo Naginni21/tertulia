@@ -102,6 +102,22 @@ def cmd_revoke(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ritual(args: argparse.Namespace) -> int:
+    """Ask the running concierge to start a ritual now (same as ``/ritual <id>`` in the group)."""
+    cfg = load_config(args.config)
+    rituals = load_rituals(cfg.room.rituals_dir)
+    if args.id not in rituals:
+        print(f"error: unknown ritual {args.id!r}; available: {', '.join(sorted(rituals))}", file=sys.stderr)
+        return 2
+    store = Store(cfg.db_path)
+    try:
+        store.kv_set("ritual_request", args.id)
+    finally:
+        store.close()
+    print(f"ritual {args.id!r} requested; the running concierge starts it within a second")
+    return 0
+
+
 def cmd_whoami(args: argparse.Namespace) -> int:
     """Print chat and user IDs seen in recent updates, to fill the config.
 
@@ -149,6 +165,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("id", type=int)
     p.set_defaults(func=cmd_revoke)
     sub.add_parser("whoami", help="discover chat/user IDs from recent updates").set_defaults(func=cmd_whoami)
+    p = sub.add_parser("ritual", help="start a ritual now in the running concierge (like /ritual <id> in the group)")
+    p.add_argument("id", help="ritual id: welcome, weekly, snapshot, ...")
+    p.set_defaults(func=cmd_ritual)
 
     args = parser.parse_args(argv)
     _setup_logging(args.verbose)

@@ -136,3 +136,15 @@ def test_ritual_command(tmp_path, fake_tg: FakeTelegram):
     app.tick()
     assert app._ritual is not None and app._ritual.spec.id == "weekly"
     assert "Próximo ritual" in app.status_text()
+
+
+def test_host_shell_request(tmp_path, fake_tg: FakeTelegram):
+    clock = Clock(ts(2026, 9, 5, 10, 0))
+    app, store, d = _app(tmp_path, fake_tg, clock)
+    store.kv_set("ritual_request", "bingo")
+    app.tick()
+    assert app._ritual is None and store.kv_get("ritual_request") == ""
+    store.kv_set("ritual_request", "weekly")  # what `tertulia-concierge ritual weekly` writes
+    app.tick()
+    assert app._ritual is not None and app._ritual.spec.id == "weekly"
+    assert store.kv_get("ritual_request") == ""

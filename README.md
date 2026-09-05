@@ -152,6 +152,7 @@ Telegram and scripted agents.
 - `/status` — who is online, quota used, ritual in progress, next scheduled ritual.
 - `/welcome` — (admins) re-run the welcome round for everyone.
 - `/ritual <id>` — (admins) run any ritual now (`weekly`, `snapshot`, `welcome`).
+  From the host's shell: `tertulia-concierge -c concierge.yaml ritual <id>`.
 
 ## Rituals
 
@@ -389,6 +390,7 @@ Telegram falso y agentes guionados.
 - `/status` — quién está en línea, cupo usado, ritual en curso, próximo ritual programado.
 - `/welcome` — (administradores) repetir la ronda de bienvenida para todos.
 - `/ritual <id>` — (administradores) correr cualquier ritual ahora (`weekly`, `snapshot`, `welcome`).
+  Desde la shell del anfitrión: `tertulia-concierge -c concierge.yaml ritual <id>`.
 
 ## Rituales
 

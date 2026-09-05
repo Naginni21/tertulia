@@ -191,14 +191,10 @@ class Concierge:
             if spec is None:
                 self._post_plain(self.t("unknown_ritual", rituals=", ".join(sorted(self.rituals))))
                 return
-            joined = [d.id for d in self.store.delegates(joined_only=True)]
-            if not joined:
+            if not self.store.delegates(joined_only=True):
                 self._post_plain(self.t("no_delegates"))
                 return
-            with self._lock:
-                busy = self._ritual is not None
-                self._ritual_queue.append(RitualRequest(spec, newcomers=joined if spec.id == "welcome" else []))
-            if busy:
+            if self._queue_ritual(spec):
                 self._post_plain(self.t("ritual_busy"))
             log.info("/ritual %s requested by %s (%s)", spec.id, name, user_id)
         # unknown commands are ignored on purpose (other bots may share the group)
@@ -443,6 +439,7 @@ class Concierge:
     def tick(self) -> None:
         now = self.clock()
         with self._lock:
+            self._pick_up_ritual_request()
             self._schedule_rituals(now)
             self._start_pending_ritual(now)
             run = self._ritual
@@ -478,6 +475,31 @@ class Concierge:
         ritual_id = self.store.create_ritual(req.spec.id, state_preview, now=now)
         self._ritual = RitualRun(ritual_id=ritual_id, spec=req.spec, participants=participants, newcomers=req.newcomers)
         log.info("ritual %s (%s) started: participants=%s newcomers=%s", ritual_id, req.spec.id, participants, req.newcomers)
+
+    def _queue_ritual(self, spec: RitualSpec) -> bool:
+        """Queue a ritual for everyone joined; returns True if one is already running."""
+        joined = [d.id for d in self.store.delegates(joined_only=True)]
+        with self._lock:
+            busy = self._ritual is not None
+            self._ritual_queue.append(RitualRequest(spec, newcomers=joined if spec.id == "welcome" else []))
+        return busy
+
+    def _pick_up_ritual_request(self) -> None:
+        """``tertulia-concierge ritual <id>`` (the host's shell) leaves the id in
+        the store; the running concierge picks it up here."""
+        wanted = self.store.kv_get("ritual_request")
+        if not wanted:
+            return
+        self.store.kv_set("ritual_request", "")
+        spec = self.rituals.get(wanted)
+        if spec is None:
+            log.warning("ritual request %r ignored: unknown ritual", wanted)
+            return
+        if not self.store.delegates(joined_only=True):
+            log.warning("ritual request %r ignored: no delegates in the room", wanted)
+            return
+        self._queue_ritual(spec)
+        log.info("ritual %s requested from the host shell; queued", spec.id)
 
     # ------------------------------------------------------------- schedules
 
