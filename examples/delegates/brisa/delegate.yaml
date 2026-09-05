@@ -18,7 +18,7 @@ adapter:
   kind: claude_cli
   model: opus
   fast_model: haiku
-  timeout_seconds: 120
+  timeout_seconds: 300
   max_budget_usd: 0.10
 
 behaviour:

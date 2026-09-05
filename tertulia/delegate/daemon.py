@@ -63,13 +63,20 @@ class DelegateDaemon:
         self.my_id: int | None = None
         self.room: dict[str, Any] = {}
         self._outbox_backoff_until = 0.0
+        self._offline_since: float | None = None
+        self._offline_alerted = False
         self._state_path = cfg.state_dir / "state.json"
         self._state = self._load_state()
 
     # --------------------------------------------------------------- lifecycle
 
     def connect(self) -> None:
-        """Say hello to the concierge, retrying until it is reachable."""
+        """Say hello to the concierge, retrying until it is reachable.
+
+        A long outage is reported to the owner once, and so is the return
+        (see ``_offline_tick``): retrying quietly forever looks, from the
+        room, exactly like a delegate that was never started.
+        """
         backoff = 2.0
         while not self.stop:
             try:
@@ -80,6 +87,7 @@ class DelegateDaemon:
                     self.stop = True
                     return
                 log.warning("concierge not ready (%s); retrying in %.0fs", exc, backoff)
+                self._offline_tick(str(exc))
                 self.sleep(backoff)
                 backoff = min(backoff * 2, 60)
                 continue
@@ -90,6 +98,7 @@ class DelegateDaemon:
                 self.cfg.agent_name, reply["delegate"]["owner_name"], self.room.get("name"),
                 self.room.get("language"), [d["agent_name"] for d in self.room.get("delegates", [])],
             )
+            self._offline_over()
             return
 
     def run_forever(self, *, wait: float = 25.0) -> None:
@@ -99,6 +108,7 @@ class DelegateDaemon:
                 self.run_once(wait=wait)
             except ConciergeUnreachable as exc:
                 log.warning("concierge unreachable (%s); reconnecting", exc.message)
+                self._offline_tick(exc.message)
                 self.sleep(5)
                 self.connect()
             except ConciergeError as exc:
@@ -248,6 +258,9 @@ class DelegateDaemon:
             self._state["total_cost_usd"] = round(float(self._state.get("total_cost_usd", 0.0)) + result.cost_usd, 6)
             log.info("adapter call: %.4f USD (total %.4f USD over %d calls)",
                      result.cost_usd, self._state["total_cost_usd"], self._state["calls"])
+        # Persist here, not only after a batch: outbox calls happen outside
+        # batches, and state.json trailed the log by a whole call (27-aug-2026).
+        self._save_state()
         return result.text
 
     def _clip(self, text: str) -> str:
@@ -403,14 +416,53 @@ class DelegateDaemon:
     def _file_question_for_owner(self, text: str) -> None:
         """Append an [ASK] to ``for-owner.md``: the delegate's questions must
         reach the owner even without a wired-up main agent watching the room."""
+        self._file_for_owner(text, what="question")
+
+    def _file_for_owner(self, text: str, *, what: str) -> None:
         try:
             path = self.cfg.base_dir / FOR_OWNER_FILE
             stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(self.clock()))
             with path.open("a", encoding="utf-8") as fh:
                 fh.write(f"- [{stamp}] {text}\n")
-            log.info("question for the owner filed in %s", FOR_OWNER_FILE)
+            log.info("%s for the owner filed in %s", what, FOR_OWNER_FILE)
         except OSError:
             log.warning("could not write %s", FOR_OWNER_FILE, exc_info=True)
+
+    # -------------------------------------------------------------- outages
+
+    def _offline_tick(self, reason: str) -> None:
+        """Every failed contact with the concierge lands here. Past
+        ``offline_alert_seconds`` the owner hears about it once — in
+        ``for-owner.md`` and through ``notify_command`` — instead of finding
+        eleven hours of retries in the log the next day (Faro, 4-sep-2026,
+        behind a corporate web filter)."""
+        now = self.clock()
+        if self._offline_since is None:
+            self._offline_since = now
+        limit = self.cfg.behaviour.offline_alert_seconds
+        if self._offline_alerted or limit <= 0 or now - self._offline_since < limit:
+            return
+        self._offline_alerted = True
+        minutes = int((now - self._offline_since) // 60)
+        self._file_for_owner(
+            f"⚠️ {self.cfg.agent_name} has been unable to reach the concierge for {minutes} min "
+            f"({reason}); the room cannot see it. Still retrying.",
+            what="outage",
+        )
+        self._notify([{"kind": "delegate_offline", "at": now, "since": self._offline_since, "reason": reason}])
+
+    def _offline_over(self) -> None:
+        """Every successful hello lands here; closes a reported outage."""
+        if self._offline_since is not None and self._offline_alerted:
+            now = self.clock()
+            hours, rest = divmod(int(now - self._offline_since), 3600)
+            self._file_for_owner(
+                f"✅ {self.cfg.agent_name} is back in the room after {hours} h {rest // 60} min offline.",
+                what="return",
+            )
+            self._notify([{"kind": "delegate_back", "at": now, "since": self._offline_since}])
+        self._offline_since = None
+        self._offline_alerted = False
 
     def _process_outbox(self) -> None:
         """Act on the owner's notes: the channel INTO the room for the owner

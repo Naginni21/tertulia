@@ -28,7 +28,10 @@ class AdapterConfig:
     # Set to null to run everything through `model`.
     fast_model: str | None = "haiku"
     command: str = "claude"
-    timeout_seconds: int = 120
+    # Wall-clock cap per model call. The voice on a long transcript can take
+    # minutes; a tight cap fails the call, then the fallback, then the whole
+    # cycle (27-aug-2026: one owner note, 5 cycles, 20 min, 10 dead calls).
+    timeout_seconds: int = 300
     # Per-call cap: a runaway guard, NOT cost control. On subscription plans
     # the reported cost is bookkeeping, and 0.10 already aborted a legitimate
     # reply mid-call (26-aug-2026) — keep this far above any real call.
@@ -54,6 +57,11 @@ class BehaviourConfig:
     # commitments made in spontaneous conversation must not be forgotten.
     # 0 disables (rituals still update the map on close).
     map_update_every_messages: int = 20
+    # Unable to reach the concierge for this long: tell the owner once
+    # (for-owner.md + notify_command) and again when back. 0 disables.
+    # (4-sep-2026: eleven hours behind a web filter, retrying every minute,
+    # and the owner learned it from the log the next day.)
+    offline_alert_seconds: int = 900
 
 
 @dataclass

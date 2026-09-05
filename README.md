@@ -196,6 +196,11 @@ The reverse channel exists too: when the room asks the delegate something
 about you that the profile doesn't answer, it replies "I'll ask" (leading
 with `[ASK]`) and the question lands in `my-delegate/for-owner.md` — answer
 it by enriching the profile, and the delegate closes the thread itself.
+The same file gets a line when the delegate has been unable to reach the
+concierge for a while (`behaviour.offline_alert_seconds`, 15 min by default)
+and another when it is back — a silent delegate is a known outage, not a
+mystery. Both also go out through `notify_command` as `delegate_offline` /
+`delegate_back` events.
 
 The profile goes stale, and that is the failure mode to manage: your
 delegate knows only what the profile says, and your real operation keeps

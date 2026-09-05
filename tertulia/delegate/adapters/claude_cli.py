@@ -44,7 +44,7 @@ class ClaudeCliAdapter:
         *,
         model: str,
         command: str = "claude",
-        timeout_seconds: int = 120,
+        timeout_seconds: int = 300,
         max_budget_usd: float = 0.10,
         extra_args: list[str] | None = None,
         cwd: Path | None = None,

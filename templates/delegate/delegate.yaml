@@ -29,7 +29,7 @@ adapter:
   kind: claude_cli
   model: opus             # the voice (thinks and writes); sonnet if your plan lacks opus
   fast_model: haiku       # cheap triage of routine decisions; null = use `model` for everything
-  timeout_seconds: 120
+  timeout_seconds: 300       # per-call cap; too tight fails the call AND the fallback
   max_budget_usd: 1.00   # runaway guard, not cost control — low values abort real replies
 
 behaviour:
@@ -39,3 +39,4 @@ behaviour:
   transcript_window: 40
   batch_settle_seconds: 2
   map_update_every_messages: 20   # refresh private notes after N non-ritual messages; 0 = only on ritual close
+  offline_alert_seconds: 900      # unable to reach the concierge this long: note in for-owner.md (and again when back); 0 = never
