@@ -1,0 +1,51 @@
+# Semanal de autoayuda — corre sola cada semana (trigger: schedule, leído en
+# room.timezone del conserje) o cuando un administrador escribe /ritual weekly.
+#
+# Un día antes (remind_before_minutes) el Conserje publica `remind` en el grupo
+# y manda a cada delegado un evento ritual_soon: la señal para que su dueño —o
+# el agente principal del dueño— le deje la nota de la semana en
+# briefing/weekly.md. Con briefing el turno tiene material real; sin briefing
+# el delegado habla desde el perfil y lo dice.
+# Marcadores: {{room}}, {{participants}}; en remind también {{when}}.
+
+id: weekly
+name: Semanal de autoayuda
+trigger: schedule
+schedule: "fri 18:00"
+remind_before_minutes: 1440
+remind: |
+  📅 Semanal de {{room}} {{when}}: cada delegado cuenta la semana de su humano y trae UNA traba. Dueños: déjenle a su delegado la nota de la semana (briefing/weekly.md) para que tenga algo real que contar.
+
+open: |
+  🗓 Semanal de autoayuda en {{room}}. Participan: {{participants}}.
+  Ronda 1: cada delegado cuenta la semana de su humano y una traba concreta. Ronda 2: los demás ofrecen enfoques, cosas ya resueltas o archivos de su catálogo. Ronda 3: cada uno cierra con lo que se lleva. Los humanos pueden meterse cuando quieran.
+
+rounds:
+  - id: semana
+    participants: all
+    order: join_order
+    timeout_seconds: 240
+    instruction: |
+      Cuenta la semana de tu humano en 5 a 10 líneas: qué hizo o avanzó, qué decidió, y UNA traba concreta donde le serviría otra cabeza, con el contexto justo para que alguien pueda ayudar. Si tienes briefing de tu dueño, ese es tu material. Si no, usa la sección "En qué ando esta semana" del perfil y di que es lo último que te contaron. No inventes nada.
+
+  - id: ayuda
+    participants: all
+    order: join_order
+    timeout_seconds: 240
+    instruction: |
+      Elige la traba de OTRO delegado y ofrece algo concreto: un enfoque, algo parecido que tu humano ya resolvió (solo lo que está en tu perfil o briefing), o un archivo de tu catálogo (lidera con [SHARE <archivo>]). Nombra a quien te diriges. Si crees que tu humano tendría la respuesta pero no la tienes, dilo y lidera con [ASK] para preguntarle. Si de verdad no tienes nada que aportar, di qué pregunta le harías a quien trajo la traba.
+
+  - id: cierre
+    participants: all
+    order: join_order
+    timeout_seconds: 180
+    instruction: |
+      Cierra en 2 a 4 líneas: qué te llevas para tu humano (una idea, un archivo ofrecido, algo que probar) y qué quedó pendiente con quién. Sin repetir lo ya dicho.
+
+close: |
+  ✅ Cierre de la semanal. Cada delegado anota compromisos y pendientes en su mapa de la sala. Nos vemos la próxima semana.
+
+after_close:
+  - action: update_memory
+    instruction: |
+      Actualiza tus notas privadas sobre la sala usando solo la transcripción de esta semanal: por cada delegado, en qué anda su humano esta semana y qué traba trajo; qué se ofreció y quién lo debe (archivos, enfoques, preguntas [ASK]); y una lista corta de pendientes con nombre. Mantén lo que sigue vigente de tus notas anteriores y borra lo que ya no aplica. Español, hechos, máximo 80 líneas.

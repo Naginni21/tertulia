@@ -14,18 +14,23 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Callable
+from zoneinfo import ZoneInfo
 
 from .config import ConciergeConfig
 from .i18n import Strings
 from .limits import Limits, SpontaneousSnapshot, check_spontaneous, check_text
-from .rituals import RitualRun, RitualSpec
+from .rituals import RitualRun, RitualSpec, render
 from .store import Delegate, Message, Store
 from .telegram import TelegramClient, TelegramError, html_escape
 
 log = logging.getLogger("tertulia.concierge")
 
 DAY = 24 * 3600
+# A scheduled ritual missed by less than this (nobody online at the time, or
+# the concierge was down) still runs when someone shows up; older ones are skipped.
+CATCH_UP_SECONDS = 6 * 3600
 # Shared files: well under Telegram's 50MB bot limit, generous for a skill/KB kit.
 MAX_SHARE_BYTES = 20 * 1024 * 1024
 
@@ -64,6 +69,7 @@ class Concierge:
         self.rituals = rituals
         self.clock = clock
         self.t = Strings(cfg.room.language)
+        self._tz = ZoneInfo(cfg.room.timezone) if cfg.room.timezone else None
         self.limits = Limits(
             spontaneous_per_24h=cfg.limits.spontaneous_per_24h,
             min_gap_seconds=cfg.limits.min_gap_seconds,
@@ -92,6 +98,11 @@ class Concierge:
                 "server.host=%s may be reachable from the internet; the API speaks plain HTTP, "
                 "so delegate tokens travel unencrypted — put TLS in front (Caddy, a VPN or a tunnel)",
                 self.cfg.server.host,
+            )
+        if self._scheduled() and self._tz is None:
+            log.warning(
+                "rituals %s are scheduled but room.timezone is not set; they will never run",
+                [s.id for s in self._scheduled()],
             )
 
     # ------------------------------------------------------------- telegram in
@@ -171,6 +182,25 @@ class Concierge:
             if busy:
                 self._post_plain(self.t("ritual_busy"))
             log.info("/welcome requested by %s (%s)", name, user_id)
+        elif command == "/ritual":
+            if user_id not in self.cfg.telegram.admin_user_ids:
+                self._post_plain(self.t("not_admin"))
+                return
+            parts = text.split()
+            spec = self.rituals.get(parts[1].lower()) if len(parts) > 1 else None
+            if spec is None:
+                self._post_plain(self.t("unknown_ritual", rituals=", ".join(sorted(self.rituals))))
+                return
+            joined = [d.id for d in self.store.delegates(joined_only=True)]
+            if not joined:
+                self._post_plain(self.t("no_delegates"))
+                return
+            with self._lock:
+                busy = self._ritual is not None
+                self._ritual_queue.append(RitualRequest(spec, newcomers=joined if spec.id == "welcome" else []))
+            if busy:
+                self._post_plain(self.t("ritual_busy"))
+            log.info("/ritual %s requested by %s (%s)", spec.id, name, user_id)
         # unknown commands are ignored on purpose (other bots may share the group)
 
     def status_text(self) -> str:
@@ -189,6 +219,10 @@ class Concierge:
         with self._lock:
             ritual = self._ritual
         lines.append(self.t("status_ritual", ritual=ritual.spec.name) if ritual else self.t("status_no_ritual"))
+        if self._tz is not None and self._scheduled():
+            tz = self._tz
+            nxt = min(self._scheduled(), key=lambda s: s.schedule.after(now, tz))  # type: ignore[union-attr]
+            lines.append(self.t("status_next", ritual=nxt.name, when=self._when(nxt.schedule.after(now, tz))))  # type: ignore[union-attr]
         return "\n".join(lines)
 
     # ------------------------------------------------------------ delegates API
@@ -409,6 +443,7 @@ class Concierge:
     def tick(self) -> None:
         now = self.clock()
         with self._lock:
+            self._schedule_rituals(now)
             self._start_pending_ritual(now)
             run = self._ritual
             if run is None:
@@ -443,6 +478,45 @@ class Concierge:
         ritual_id = self.store.create_ritual(req.spec.id, state_preview, now=now)
         self._ritual = RitualRun(ritual_id=ritual_id, spec=req.spec, participants=participants, newcomers=req.newcomers)
         log.info("ritual %s (%s) started: participants=%s newcomers=%s", ritual_id, req.spec.id, participants, req.newcomers)
+
+    # ------------------------------------------------------------- schedules
+
+    def _scheduled(self) -> list[RitualSpec]:
+        return [s for s in self.rituals.values() if s.trigger == "schedule" and s.schedule is not None]
+
+    def _when(self, at: float) -> str:
+        assert self._tz is not None
+        local = datetime.fromtimestamp(at, self._tz)
+        return self.t("when", weekday=self.t(f"weekday_{local.weekday()}"), time=local.strftime("%H:%M"))
+
+    def _schedule_rituals(self, now: float) -> None:
+        """Queue each scheduled ritual once per occurrence; post its reminder once.
+
+        Both marks live in the store (``ritual_last_run:<id>``,
+        ``ritual_reminded:<id>``) so a restart neither repeats nor forgets.
+        """
+        if self._tz is None:
+            return
+        for spec in self._scheduled():
+            assert spec.schedule is not None
+            due = spec.schedule.at_or_before(now, self._tz)
+            last_run = float(self.store.kv_get(f"ritual_last_run:{spec.id}") or 0)
+            if due > last_run and now - due <= CATCH_UP_SECONDS:
+                queued = any(r.spec.id == spec.id for r in self._ritual_queue)
+                online = any(self._is_online(d, now) for d in self.store.delegates(joined_only=True))
+                # Nobody online: keep trying within the catch-up window rather
+                # than posting an opening nobody answers.
+                if not queued and online:
+                    self._ritual_queue.append(RitualRequest(spec, newcomers=[]))
+                    self.store.kv_set(f"ritual_last_run:{spec.id}", str(due))
+                    log.info("ritual %s is due (%s); queued", spec.id, self._when(due))
+            if spec.remind and spec.remind_before_minutes > 0:
+                nxt = spec.schedule.after(now, self._tz)
+                if nxt - now <= spec.remind_before_minutes * 60 and self.store.kv_get(f"ritual_reminded:{spec.id}") != str(nxt):
+                    self.store.kv_set(f"ritual_reminded:{spec.id}", str(nxt))
+                    self.post_concierge(render(spec.remind, room=self.cfg.room.name, when=self._when(nxt)), ritual_id=None)
+                    self.broadcast("ritual_soon", {"ritual": spec.id, "name": spec.name, "at": nxt})
+                    log.info("reminder for ritual %s posted (%s)", spec.id, self._when(nxt))
 
     # ---------------------------------------------------------------- RoomPort
 

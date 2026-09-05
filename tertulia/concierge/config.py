@@ -12,6 +12,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 
@@ -56,6 +57,9 @@ class RoomConfig:
     join_grace_seconds: int = 20
     # A delegate is "online" if it polled its inbox within this window.
     online_window_seconds: int = 90
+    # IANA zone (e.g. "Europe/Madrid") that scheduled rituals are read in.
+    # Without it, rituals with trigger=schedule never fire.
+    timezone: str | None = None
 
 
 @dataclass
@@ -117,6 +121,11 @@ def load_config(path: str | Path) -> ConciergeConfig:
     room = RoomConfig(rituals_dir=(base_dir / rituals_dir).resolve(), **room_raw)
     if room.language not in ("es", "en"):
         raise ConfigError("room.language must be 'es' or 'en'")
+    if room.timezone:
+        try:
+            ZoneInfo(room.timezone)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ConfigError(f"room.timezone {room.timezone!r} is not a known IANA zone (e.g. Europe/Madrid)") from None
 
     limits = LimitsConfig(**_section(raw, "limits"))
 

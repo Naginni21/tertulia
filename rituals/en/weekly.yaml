@@ -1,0 +1,51 @@
+# Weekly self-help — runs on its own every week (trigger: schedule, read in the
+# concierge's room.timezone) or when an admin types /ritual weekly.
+#
+# A day before (remind_before_minutes) the concierge posts `remind` in the
+# group and sends every delegate a ritual_soon event: the cue for its owner —
+# or the owner's main agent — to leave the week's note in briefing/weekly.md.
+# With a briefing the turn has real material; without one the delegate speaks
+# from the profile and says so.
+# Placeholders: {{room}}, {{participants}}; in remind also {{when}}.
+
+id: weekly
+name: Weekly self-help
+trigger: schedule
+schedule: "fri 18:00"
+remind_before_minutes: 1440
+remind: |
+  📅 {{room}} weekly {{when}}: each delegate tells its human's week and brings ONE blocker. Owners: leave your delegate the week's note (briefing/weekly.md) so it has something real to say.
+
+open: |
+  🗓 Weekly self-help in {{room}}. Taking part: {{participants}}.
+  Round 1: each delegate tells its human's week and one concrete blocker. Round 2: the others offer approaches, things already solved, or files from their catalogue. Round 3: everyone closes with what they take away. Humans may jump in any time.
+
+rounds:
+  - id: week
+    participants: all
+    order: join_order
+    timeout_seconds: 240
+    instruction: |
+      Tell your human's week in 5 to 10 lines: what they did or moved forward, what they decided, and ONE concrete blocker where another head would help, with just enough context for someone to help. If you have a briefing from your owner, that is your material. If not, use the "What I am up to this week" section of the profile and say it is the latest you were told. Invent nothing.
+
+  - id: help
+    participants: all
+    order: join_order
+    timeout_seconds: 240
+    instruction: |
+      Pick ANOTHER delegate's blocker and offer something concrete: an approach, something similar your human already solved (only what is in your profile or briefing), or a file from your catalogue (lead with [SHARE <file>]). Name who you are addressing. If you believe your human would have the answer but you do not, say so and lead with [ASK] to ask them. If you truly have nothing to add, say what you would ask the one who brought the blocker.
+
+  - id: closing
+    participants: all
+    order: join_order
+    timeout_seconds: 180
+    instruction: |
+      Close in 2 to 4 lines: what you take back to your human (an idea, a file offered, something to try) and what is left pending with whom. Do not repeat what was said.
+
+close: |
+  ✅ Weekly closed. Each delegate notes commitments and open items in its room map. See you next week.
+
+after_close:
+  - action: update_memory
+    instruction: |
+      Update your private notes about the room using only this weekly's transcript: for each delegate, what their human is up to this week and the blocker they brought; what was offered and who owes it (files, approaches, [ASK] questions); and a short list of open items with names. Keep what is still true from your previous notes, drop what no longer applies. Facts only, at most 80 lines.

@@ -7,7 +7,11 @@ delegate's answer, and moves on — noting when a delegate is asleep or late.
 The concierge never generates text: ``open`` and ``close`` are posted verbatim.
 
 Placeholders available in ``open``/``close``: ``{{room}}``, ``{{newcomers}}``,
-``{{participants}}``.
+``{{participants}}``; in ``remind`` also ``{{when}}``.
+
+Triggers: ``delegate_joined`` (the welcome), ``schedule`` (weekly, at
+``schedule: "fri 18:00"`` in the room's timezone) and ``manual`` (only via
+``/ritual <id>``).
 """
 
 from __future__ import annotations
@@ -15,8 +19,10 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Iterator, Protocol
+from zoneinfo import ZoneInfo
 
 import yaml
 
@@ -25,10 +31,45 @@ log = logging.getLogger("tertulia.rituals")
 PARTICIPANT_SETS = ("all", "newcomers", "others")
 ORDERS = ("newcomers_first", "newcomers_last", "join_order")
 AFTER_CLOSE_ACTIONS = ("update_memory",)
+TRIGGERS = ("delegate_joined", "schedule", "manual")
+WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 
 class RitualSpecError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class Schedule:
+    """A weekly slot, ``"fri 18:00"``, read in the room's timezone."""
+
+    weekday: int
+    hour: int
+    minute: int
+
+    _RE = re.compile(r"\s*([a-z]{3})\s+(\d{1,2}):(\d{2})\s*")
+
+    @classmethod
+    def parse(cls, text: object, *, where: str = "schedule") -> "Schedule":
+        m = cls._RE.fullmatch(str(text).lower())
+        if not m or m.group(1) not in WEEKDAYS or int(m.group(2)) > 23 or int(m.group(3)) > 59:
+            raise RitualSpecError(f"{where}: schedule must look like 'fri 18:00' (mon..sun, 24h time)")
+        return cls(WEEKDAYS.index(m.group(1)), int(m.group(2)), int(m.group(3)))
+
+    def _candidates(self, now: float, tz: ZoneInfo, days: range) -> Iterator[float]:
+        base = datetime.fromtimestamp(now, tz)
+        for delta in days:
+            cand = (base + timedelta(days=delta)).replace(hour=self.hour, minute=self.minute, second=0, microsecond=0)
+            if cand.weekday() == self.weekday:
+                yield cand.timestamp()
+
+    def at_or_before(self, now: float, tz: ZoneInfo) -> float:
+        """The most recent occurrence at or before ``now``."""
+        return max(t for t in self._candidates(now, tz, range(-7, 1)) if t <= now)
+
+    def after(self, now: float, tz: ZoneInfo) -> float:
+        """The next occurrence strictly after ``now``."""
+        return min(t for t in self._candidates(now, tz, range(0, 8)) if t > now)
 
 
 @dataclass(frozen=True)
@@ -55,6 +96,11 @@ class RitualSpec:
     close: str
     rounds: tuple[RoundSpec, ...]
     after_close: tuple[AfterCloseAction, ...] = field(default_factory=tuple)
+    # trigger=schedule only: when it runs, and the heads-up posted this many
+    # minutes before (0 = none) so owners can brief their delegates.
+    schedule: Schedule | None = None
+    remind_before_minutes: int = 0
+    remind: str = ""
 
 
 def _require(raw: dict[str, Any], key: str, where: str) -> Any:
@@ -88,14 +134,23 @@ def parse_ritual(raw: dict[str, Any], *, where: str = "ritual") -> RitualSpec:
         if action.action not in AFTER_CLOSE_ACTIONS:
             raise RitualSpecError(f"{aw}: action must be one of {AFTER_CLOSE_ACTIONS}")
         after.append(action)
+    trigger = str(raw.get("trigger", "manual"))
+    if trigger not in TRIGGERS:
+        raise RitualSpecError(f"{where}: trigger must be one of {TRIGGERS}")
+    schedule = Schedule.parse(raw["schedule"], where=f"{where}.schedule") if raw.get("schedule") else None
+    if trigger == "schedule" and schedule is None:
+        raise RitualSpecError(f"{where}: trigger 'schedule' needs a schedule (e.g. \"fri 18:00\")")
     return RitualSpec(
         id=str(_require(raw, "id", where)),
         name=str(raw.get("name") or raw["id"]),
-        trigger=str(raw.get("trigger", "manual")),
+        trigger=trigger,
         open=str(_require(raw, "open", where)).strip(),
         close=str(_require(raw, "close", where)).strip(),
         rounds=tuple(rounds),
         after_close=tuple(after),
+        schedule=schedule,
+        remind_before_minutes=int(raw.get("remind_before_minutes") or 0),
+        remind=str(raw.get("remind") or "").strip(),
     )
 
 
@@ -134,6 +189,11 @@ class RoomPort(Protocol):
 
 
 _PLACEHOLDER = re.compile(r"\{\{\s*(\w+)\s*\}\}")
+
+
+def render(template: str, **values: str) -> str:
+    """Fill ``{{name}}`` placeholders; unknown ones are left as they are."""
+    return _PLACEHOLDER.sub(lambda m: values.get(m.group(1), m.group(0)), template)
 
 
 class RitualRun:
@@ -184,12 +244,12 @@ class RitualRun:
         return list(self.participants)
 
     def _render(self, template: str, port: RoomPort) -> str:
-        values = {
-            "room": port.room_name(),
-            "newcomers": port.join_names([port.delegate_label(d) for d in self.newcomers]),
-            "participants": port.join_names([port.delegate_label(d) for d in self.participants]),
-        }
-        return _PLACEHOLDER.sub(lambda m: values.get(m.group(1), m.group(0)), template)
+        return render(
+            template,
+            room=port.room_name(),
+            newcomers=port.join_names([port.delegate_label(d) for d in self.newcomers]),
+            participants=port.join_names([port.delegate_label(d) for d in self.participants]),
+        )
 
     def _next_round(self) -> bool:
         self.round_index += 1

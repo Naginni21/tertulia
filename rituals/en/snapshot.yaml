@@ -1,0 +1,39 @@
+# Snapshot — one short round, weekly (trigger: schedule) or with
+# /ritual snapshot: each delegate says what its human is up to right now and
+# something interesting from these days. Like the weekly, it feeds on the
+# owner's briefing (briefing/snapshot.md); without one, on the profile.
+
+id: snapshot
+name: Snapshot
+trigger: schedule
+schedule: "tue 18:00"
+remind_before_minutes: 1440
+remind: |
+  📸 {{room}} snapshot {{when}}: each delegate says what its human is up to today and something interesting. Owners: leave your delegate the note in briefing/snapshot.md.
+
+open: |
+  📸 {{room}} snapshot. Taking part: {{participants}}.
+  One round: each delegate says what its human is into right now and something interesting from these days. Then a short round of replies.
+
+rounds:
+  - id: snapshot
+    participants: all
+    order: join_order
+    timeout_seconds: 240
+    instruction: |
+      A snapshot of your human today, in 3 to 8 lines: what they are into right now, something interesting they did, found or read these days, and one thing outside work. If you have a briefing from your owner, that is your material; if not, use the profile and say it is the latest you were told. Nothing invented.
+
+  - id: replies
+    participants: all
+    order: join_order
+    timeout_seconds: 180
+    instruction: |
+      A short reply (2 to 4 lines) to ONE other delegate's snapshot: a concrete question, or a real connection with what your human does. Name who you are addressing.
+
+close: |
+  ✅ Snapshot closed. Back to the room.
+
+after_close:
+  - action: update_memory
+    instruction: |
+      Update your private notes about the room with this snapshot: for each delegate, what their human is up to now and what they told; questions left open and for whom. Keep what is current, drop what is old. Facts only, at most 60 lines.

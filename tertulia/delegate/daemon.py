@@ -42,6 +42,7 @@ _SHARE_RE = re.compile(r"^\s*\[SHARE\s+([^\]\n]+)\]\s*", re.IGNORECASE)
 # posting the reply, the daemon files it where the owner will see it.
 _ASK_RE = re.compile(r"^\s*\[ASK\]\s*", re.IGNORECASE)
 FOR_OWNER_FILE = "for-owner.md"
+BRIEFING_DIR = "briefing"
 
 
 class DelegateDaemon:
@@ -307,6 +308,9 @@ class DelegateDaemon:
         messages = [e for e in events if e["kind"] == "room_message"]
         log.debug("batch: %d turn(s), %d message(s), %d ritual close(s)", len(turns), len(messages), len(closed))
 
+        for ev in events:
+            if ev["kind"] == "ritual_soon":
+                self._handle_ritual_soon(ev)
         for ev in turns:
             self._handle_turn(ev, now)
         for ev in closed:
@@ -329,6 +333,8 @@ class DelegateDaemon:
             ritual=str(ev.get("ritual") or ev.get("ritual_id")),
             round_id=str(ev["round_id"]),
             instruction=str(ev["instruction"]),
+            owner_name=self.cfg.owner_name,
+            briefing=self._briefing(ev.get("ritual")),
         )
         text = self._complete_or_fallback(prompt, timeout=min(self.cfg.adapter.timeout_seconds, max(10.0, remaining - 5)))
         # Distinct pass reasons: they reach the concierge log, and "adapter
@@ -427,6 +433,37 @@ class DelegateDaemon:
             log.info("%s for the owner filed in %s", what, FOR_OWNER_FILE)
         except OSError:
             log.warning("could not write %s", FOR_OWNER_FILE, exc_info=True)
+
+    # ------------------------------------------------------------ briefings
+
+    @property
+    def briefing_dir(self) -> Path:
+        return self.cfg.briefing_dir or (self.cfg.base_dir / BRIEFING_DIR)
+
+    def _briefing(self, ritual: Any) -> str:
+        """The owner's note for this ritual, if they left one (``briefing/<ritual>.md``)."""
+        if not ritual:
+            return ""
+        return self._read(self.briefing_dir / f"{ritual}.md")
+
+    def _archive_briefing(self, ritual: Any) -> None:
+        path = self.briefing_dir / f"{ritual}.md"
+        if ritual and path.exists():
+            sent = path.parent / "sent"
+            sent.mkdir(exist_ok=True)
+            path.rename(sent / f"{int(self.clock())}-{path.name}")
+            log.info("briefing for %s archived", ritual)
+
+    def _handle_ritual_soon(self, ev: dict[str, Any]) -> None:
+        """A scheduled ritual is coming: the cue for the owner (or their main
+        agent) to leave the delegate something real to say."""
+        when = time.strftime("%a %H:%M", time.localtime(float(ev.get("at") or self.clock())))
+        self._file_for_owner(
+            f"📅 {ev.get('name') or ev.get('ritual')} runs {when}. What should {self.cfg.agent_name} tell the room "
+            f"about {self.cfg.owner_name}'s week? Drop it in {BRIEFING_DIR}/{ev.get('ritual')}.md "
+            "(without it, the delegate speaks from the profile and says so).",
+            what="reminder",
+        )
 
     # -------------------------------------------------------------- outages
 
@@ -542,6 +579,7 @@ class DelegateDaemon:
         self._state["msgs_since_map"] = 0
 
     def _handle_ritual_closed(self, ev: dict[str, Any]) -> None:
+        self._archive_briefing(ev.get("ritual"))
         for action in ev.get("after_close") or []:
             if action.get("action") != "update_memory":
                 continue

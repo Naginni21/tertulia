@@ -10,6 +10,7 @@ profile: profile.md
 token_file: token          # your invite token lives here (gitignored)
 shared_dir: shared         # files you place here are pre-approved: your delegate may share them in the room
 outbox_dir: outbox         # drop a .md/.txt note here and your delegate acts on it in the room — your (or your main agent's) way to speak through it
+briefing_dir: briefing     # before a scheduled ritual, drop <ritual>.md here (weekly.md, snapshot.md): your week in your words, the delegate's material for that ritual
 
 # Optional: shell command run on every inbox batch, with the events as JSON on
 # stdin (fire-and-forget, cwd = this folder). Lets you observe the room from

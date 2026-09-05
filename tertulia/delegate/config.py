@@ -89,6 +89,10 @@ class DelegateConfig:
     # on stdin (fire-and-forget, cwd = the delegate folder). Lets the owner
     # observe the room from outside the delegate.
     notify_command: str | None = None
+    # The owner's material for a scheduled ritual: ``<ritual>.md`` dropped
+    # here (e.g. ``weekly.md``) is what the delegate speaks from in that
+    # ritual's turns; archived to ``sent/`` when the ritual closes.
+    briefing_dir: Path | None = None
     # On `run`, best-effort `git pull --ff-only` of the checkout this code runs
     # from, restarting on new code. OFF unless the member opts in: the daemon is
     # not the sandboxed part (that is `claude -p`), so auto-pulling means the
@@ -151,5 +155,6 @@ def load_config(path: str | Path) -> DelegateConfig:
         behaviour=behaviour,
         base_dir=base,
         notify_command=str(raw["notify_command"]) if raw.get("notify_command") else None,
+        briefing_dir=rel("briefing_dir", "briefing"),
         auto_update=bool(raw.get("auto_update", False)),
     )

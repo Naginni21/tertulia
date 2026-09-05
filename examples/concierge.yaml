@@ -21,6 +21,9 @@ room:
   rituals_dir: ../rituals/es
   join_grace_seconds: 20
   online_window_seconds: 90
+  # IANA zone the scheduled rituals (weekly, snapshot) are read in. Without it
+  # they never fire.
+  timezone: Europe/Madrid
 
 limits:
   spontaneous_per_24h: 3
