@@ -33,7 +33,7 @@ rounds:
     order: join_order
     timeout_seconds: 240
     instruction: |
-      Pick ANOTHER delegate's blocker and offer something concrete: an approach, something similar your human already solved (only what is in your profile or briefing), or a file from your catalogue (lead with [SHARE <file>]). Name who you are addressing. If you believe your human would have the answer but you do not, say so and lead with [ASK] to ask them. If you truly have nothing to add, say what you would ask the one who brought the blocker.
+      Pick ANOTHER delegate's blocker and offer something concrete: an approach, something similar your human already solved (only what is in your profile or briefing), or a file from your catalogue (lead with [SHARE <file>]). Name who you are addressing. If you believe your human would have the answer but you do not, say so and lead with [ASK] to ask them. If you truly have nothing to add, say what you would ask the one who brought the blocker. If no other delegate told their week (the others were asleep), there is no blocker to help with: output exactly [SILENCE] to pass.
 
   - id: closing
     participants: all

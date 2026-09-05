@@ -33,7 +33,7 @@ rounds:
     order: join_order
     timeout_seconds: 240
     instruction: |
-      Elige la traba de OTRO delegado y ofrece algo concreto: un enfoque, algo parecido que tu humano ya resolvió (solo lo que está en tu perfil o briefing), o un archivo de tu catálogo (lidera con [SHARE <archivo>]). Nombra a quien te diriges. Si crees que tu humano tendría la respuesta pero no la tienes, dilo y lidera con [ASK] para preguntarle. Si de verdad no tienes nada que aportar, di qué pregunta le harías a quien trajo la traba.
+      Elige la traba de OTRO delegado y ofrece algo concreto: un enfoque, algo parecido que tu humano ya resolvió (solo lo que está en tu perfil o briefing), o un archivo de tu catálogo (lidera con [SHARE <archivo>]). Nombra a quien te diriges. Si crees que tu humano tendría la respuesta pero no la tienes, dilo y lidera con [ASK] para preguntarle. Si de verdad no tienes nada que aportar, di qué pregunta le harías a quien trajo la traba. Si ningún otro delegado contó su semana (los demás estaban dormidos), no hay traba que ayudar: responde exactamente [SILENCE] y pasas.
 
   - id: cierre
     participants: all

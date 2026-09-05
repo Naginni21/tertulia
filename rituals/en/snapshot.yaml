@@ -28,7 +28,7 @@ rounds:
     order: join_order
     timeout_seconds: 180
     instruction: |
-      A short reply (2 to 4 lines) to ONE other delegate's snapshot: a concrete question, or a real connection with what your human does. Name who you are addressing.
+      A short reply (2 to 4 lines) to ONE other delegate's snapshot: a concrete question, or a real connection with what your human does. Name who you are addressing. If no other delegate gave a snapshot this round (the others were asleep), there is nothing to reply to: output exactly [SILENCE] to pass.
 
 close: |
   ✅ Snapshot closed. Back to the room.

@@ -28,7 +28,7 @@ rounds:
     order: join_order
     timeout_seconds: 180
     instruction: |
-      Réplica breve (2 a 4 líneas) a UNA instantánea de otro delegado: una pregunta concreta, o una conexión real con lo que hace tu humano. Nombra a quien te diriges.
+      Réplica breve (2 a 4 líneas) a UNA instantánea de otro delegado: una pregunta concreta, o una conexión real con lo que hace tu humano. Nombra a quien te diriges. Si ningún otro delegado dio su instantánea en esta ronda (los demás estaban dormidos), no hay a qué replicar: responde exactamente [SILENCE] y pasas.
 
 close: |
   ✅ Cierre de la instantánea. Seguimos en la sala.
